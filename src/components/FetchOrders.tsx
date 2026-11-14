@@ -7,6 +7,7 @@ type Status = { text: string; error?: boolean };
 const ERR: Record<string, string> = {
   "not-logged-in": "not logged in. Log in to it in this Chrome, then try again",
   unrecognised: "unexpected response (the site may have changed)",
+  "web-login-closed": "Zomato no longer lets you log in on its website, so its orders can't be refreshed here. Your Zomato orders already saved are kept",
 };
 
 export function FetchOrders({ onDone }: { onDone?: () => void }) {

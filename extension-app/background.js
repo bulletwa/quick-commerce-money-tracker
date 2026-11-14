@@ -313,7 +313,7 @@ async function fetchPlatform(platform, send) {
   tab.platform = platform;
   try {
     const r = await runInTab(tab, RUNNERS[platform]);
-    if (!r || r.error) return send({ type: "error", platform, error: r?.error || "no-result" });
+    if (!r || r.error) return send({ type: "error", platform, error: platform === "zomato" && r?.error === "not-logged-in" ? "web-login-closed" : r?.error || "no-result" });
     const list = r.orders;
     const priced = await pricedIds(platform);
     // never replace an order that already has exact prices with a list-only copy
@@ -347,7 +347,7 @@ async function fetchPlatform(platform, send) {
       }
     }
     failed = todo.filter((o) => !o.__ok).length;
-    if (loginError) send({ type: "error", platform, error: loginError });
+    if (loginError) send({ type: "error", platform, error: platform === "zomato" ? "web-login-closed" : loginError });
     else send({ type: "imported", platform, added: res.added, updated: res.updated, skipped: first.skipped, priced: todo.length - failed, failed });
   } catch (e) {
     send({ type: "error", platform, error: String(e?.message || e) });
