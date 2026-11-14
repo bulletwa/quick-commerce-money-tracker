@@ -3,7 +3,8 @@
 # Starts the local dashboard server only when you open it, opens Chrome, and shuts the server down
 # (freeing its memory/CPU) a few minutes after you close the dashboard tab. Nothing here talks to the internet; it serves 127.0.0.1 only.
 #
-# Env: LAUNCHER_TEST=1 runs a quick start/check/stop cycle without opening a browser or dialog.
+# Env: NO_OPEN=1 skips opening a browser tab (the extension popup opens it itself).
+#      LAUNCHER_TEST=1 runs a quick start/check/stop cycle without opening a browser or dialog.
 
 PORT=${PORT:-3000}
 ROOT="${0:A:h:h}"
@@ -36,7 +37,7 @@ trap stop_server EXIT INT TERM HUP
 # Something already on the port?
 if lsof -ti tcp:$PORT -sTCP:LISTEN >/dev/null 2>&1; then
   if is_ours; then
-    [[ -z $LAUNCHER_TEST ]] && open "$URL"
+    [[ -z $LAUNCHER_TEST && -z $NO_OPEN ]] && open "$URL"
     echo "Money Tracker is already running; opened it."
     exit 0   # not started by us, so we don't stop it
   fi
@@ -65,7 +66,7 @@ if [[ -n $LAUNCHER_TEST ]]; then
 fi
 
 # Open in Chrome (the extension lives there), falling back to the default browser.
-open -a "Google Chrome" "$URL" 2>/dev/null || open "$URL"
+[[ -z $NO_OPEN ]] && { open -a "Google Chrome" "$URL" 2>/dev/null || open "$URL"; }
 
 # No window to click: the dashboard page pings /api/ping while it is open; when the pings stop
 # (all dashboard tabs closed) the server shuts itself down.

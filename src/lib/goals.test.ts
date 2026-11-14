@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { goalProgress, metricValue, smartTips, suggestGoals, type Goal } from "./goals";
+import { goalProgress, metricValue, smartTips, recentAverage, suggestGoals, type Goal } from "./goals";
 import type { Order } from "./types";
 
 let n = 0;
@@ -38,6 +38,13 @@ describe("goals", () => {
   it("suggests nothing without history and something with it", () => {
     expect(suggestGoals([], NOW)).toEqual([]);
     expect(suggestGoals(orders, NOW).some((s) => s.scope === "food" && s.metric === "spend")).toBe(true);
+  });
+  it("suggests limits equal to the last 2 full months' average", () => {
+    // Sep food = 400, Oct food = 950 -> avg 675 -> rounds to 700; orders (1 + 3) / 2 = 2
+    expect(recentAverage(orders, { scope: "food", metric: "spend" }, 2, NOW)).toBe(675);
+    const s = suggestGoals(orders, NOW);
+    expect(s.find((g) => g.scope === "food" && g.metric === "spend")?.limit).toBe(700);
+    expect(s.find((g) => g.scope === "food" && g.metric === "orders")?.limit).toBe(2);
   });
   it("tips do not throw on empty data", () => { expect(smartTips([], NOW)).toEqual([]); });
 });

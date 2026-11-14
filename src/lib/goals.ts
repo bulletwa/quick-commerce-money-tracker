@@ -103,29 +103,35 @@ export function describeGoal(g: Goal) {
   return `${where[0].toUpperCase() + where.slice(1)} orders containing tobacco: at most ${n} a month`;
 }
 
-/** Starter goals derived from the user's own history: budget at their 75th-percentile month, order cap ~15% under their average. */
-export function suggestGoals(orders: Order[], now = new Date()): Omit<Goal, "id">[] {
-  const out: Omit<Goal, "id">[] = [];
+/** Average of a metric over the previous `n` full months (months before the user's first order are skipped). */
+export function recentAverage(orders: Order[], g: Pick<Goal, "scope" | "metric" | "threshold">, n = 2, now = new Date()): number {
   const months = byMonth(orders);
   const first = orders.reduce((m, o) => Math.min(m, new Date(o.placedAt).getTime()), Infinity);
   const firstMonth = isFinite(first) ? monthKey(new Date(first)) : monthKey(now);
-  const keys: string[] = [];
-  for (let n = 12; n >= 1; n--) { const k = monthKey(addMonths(now, -n)); if (k >= firstMonth) keys.push(k); }
-  if (!keys.length) return out;
-  const roundTo = (n: number, step: number) => Math.max(step, Math.round(n / step) * step);
+  const vals: number[] = [];
+  for (let i = 1; i <= n; i++) { const k = monthKey(addMonths(now, -i)); if (k >= firstMonth) vals.push(metricValue(months.get(k) ?? [], g)); }
+  return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+}
+
+/** Limit that matches the recent average: rupees round to the nearest ₹100, counts to a whole order. */
+export function limitFromAverage(metric: Metric, avg: number) {
+  return metric === "spend" ? Math.max(100, Math.round(avg / 100) * 100) : Math.max(0, Math.round(avg));
+}
+
+/** Starter goals: each limit equals the average of the last 2 full months, so it starts as "keep doing what you did, no worse". */
+export function suggestGoals(orders: Order[], now = new Date()): Omit<Goal, "id">[] {
+  const out: Omit<Goal, "id">[] = [];
+  const avg = (scope: Scope, metric: Metric, threshold?: number) => recentAverage(orders, { scope, metric, threshold }, 2, now);
   for (const scope of ["grocery", "food"] as const) {
-    const spend = keys.map((k) => metricValue(months.get(k) ?? [], { scope, metric: "spend" })).sort((a, b) => a - b);
-    const cnt = keys.map((k) => metricValue(months.get(k) ?? [], { scope, metric: "orders" }));
-    if (!spend.some((s) => s > 0)) continue;
-    const p75 = spend[Math.min(spend.length - 1, Math.floor(spend.length * 0.75))];
-    out.push({ label: `${scope === "food" ? "Food delivery" : "Groceries"} budget`, scope, metric: "spend", limit: roundTo(p75, 500) });
-    const avg = cnt.reduce((a, b) => a + b, 0) / cnt.length;
-    out.push({ label: `${scope === "food" ? "Food" : "Grocery"} order cap`, scope, metric: "orders", limit: Math.max(1, Math.round(avg * 0.85)) });
-    const small = keys.map((k) => metricValue(months.get(k) ?? [], { scope, metric: "small_orders", threshold: 200 })).reduce((a, b) => a + b, 0) / keys.length;
-    if (small >= 1) out.push({ label: `${scope === "food" ? "Food" : "Grocery"} orders under ₹200`, scope, metric: "small_orders", threshold: 200, limit: Math.max(1, Math.floor(small / 2)) });
+    const name = scope === "food" ? "Food delivery" : "Groceries";
+    if (avg(scope, "spend") <= 0) continue;
+    out.push({ label: `${name} budget`, scope, metric: "spend", limit: limitFromAverage("spend", avg(scope, "spend")) });
+    out.push({ label: `${scope === "food" ? "Food" : "Grocery"} order cap`, scope, metric: "orders", limit: Math.max(1, limitFromAverage("orders", avg(scope, "orders"))) });
+    const small = avg(scope, "small_orders", 200);
+    if (small >= 0.5) out.push({ label: `${scope === "food" ? "Food" : "Grocery"} orders under ₹200`, scope, metric: "small_orders", threshold: 200, limit: Math.max(1, limitFromAverage("small_orders", small)) });
   }
-  const toba = keys.map((k) => metricValue(months.get(k) ?? [], { scope: "grocery", metric: "tobacco_orders" })).reduce((a, b) => a + b, 0) / keys.length;
-  if (toba >= 1) out.push({ label: "Orders with tobacco", scope: "grocery", metric: "tobacco_orders", limit: Math.max(0, Math.floor(toba * 0.7)) });
+  const toba = avg("grocery", "tobacco_orders");
+  if (toba >= 0.5) out.push({ label: "Orders with tobacco", scope: "grocery", metric: "tobacco_orders", limit: limitFromAverage("tobacco_orders", toba) });
   return out;
 }
 

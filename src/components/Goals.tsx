@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import type { Order } from "@/lib/types";
-import { METRICS, METRIC_LABEL, SCOPES, describeGoal, goalProgress, smartTips, suggestGoals, type Goal, type Metric, type Progress, type Scope } from "@/lib/goals";
+import { METRICS, METRIC_LABEL, SCOPES, describeGoal, goalProgress, limitFromAverage, recentAverage, smartTips, suggestGoals, type Goal, type Metric, type Progress, type Scope } from "@/lib/goals";
 import { inr } from "@/lib/format";
 
 const COLOR = { ok: "#10b981", warn: "#f59e0b", over: "#ef4444" } as const;
@@ -71,6 +71,7 @@ export function Goals({ orders }: { orders: Order[] }) {
   useEffect(() => { // tell the extension (if installed) how many goals are over/near their limit, for its icon badge
     if (goals) window.postMessage({ source: "mt-dashboard", type: "badge", over: progress.filter((p) => p.state === "over").length, warn: progress.filter((p) => p.state === "warn").length }, location.origin);
   }, [goals, progress]);
+  const formAvg = useMemo(() => recentAverage(orders, { scope: form.scope, metric: form.metric, threshold: 200 }, 2, now), [orders, form.scope, form.metric, now]);
   const post = (body: unknown) => call({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const month = now.toLocaleString("en-IN", { month: "long", year: "numeric" });
 
@@ -97,7 +98,7 @@ export function Goals({ orders }: { orders: Order[] }) {
 
       {goals && goals.length === 0 && suggestions.length > 0 && (
         <div className="card space-y-2">
-          <h3 className="text-sm font-medium">Suggested starting goals, based on your last 12 months</h3>
+          <h3 className="text-sm font-medium">Suggested starting goals: your average of the last 2 full months</h3>
           <ul className="space-y-1 text-sm text-muted">{suggestions.map((s) => <li key={s.label}>• {describeGoal({ ...s, id: "" })}</li>)}</ul>
           <button className="btn btn-primary" onClick={() => post(suggestions)}>Add these goals</button>
         </div>
@@ -116,6 +117,11 @@ export function Goals({ orders }: { orders: Order[] }) {
           <select className="input" value={form.metric} onChange={(e) => setForm({ ...form, metric: e.target.value as Metric })}>{METRICS.map((m) => <option key={m} value={m}>{METRIC_LABEL[m]}</option>)}</select></label>
         <label className="space-y-1"><div className="text-xs text-muted">Monthly limit</div>
           <input className="input w-28" inputMode="numeric" value={form.limit} onChange={(e) => setForm({ ...form, limit: e.target.value })} placeholder={form.metric === "spend" ? "5000" : "8"} /></label>
+        {formAvg > 0 && (
+          <button className="btn" onClick={() => setForm({ ...form, limit: String(limitFromAverage(form.metric, formAvg)) })} title="Average of the last 2 full months">
+            Use 2-month avg ({fmt(form.metric, limitFromAverage(form.metric, formAvg))})
+          </button>
+        )}
         <label className="space-y-1"><div className="text-xs text-muted">Name (optional)</div>
           <input className="input w-48" value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} /></label>
         <button className="btn btn-primary" onClick={add}>Add goal</button>
