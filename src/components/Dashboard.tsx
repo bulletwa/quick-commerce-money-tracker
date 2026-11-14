@@ -10,6 +10,9 @@ import { FetchOrders } from "./FetchOrders";
 import { ItemDrill } from "./ItemDrill";
 import { Goals } from "./Goals";
 import { Backup } from "./Backup";
+import { AccuracyNote } from "./AccuracyNote";
+import { ItemPrices } from "./ItemPrices";
+import { confidence, reconcile, withAmounts, type Prices } from "@/lib/analytics/amounts";
 import { api } from "@/lib/api";
 
 const tip = { formatter: (v: unknown) => inr(Number(v)), contentStyle: { background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 } };
@@ -86,7 +89,8 @@ export default function Dashboard() {
   const [open, setOpen] = useState<string | null>(null);
   const [drill, setDrill] = useState<string | null>(null);
 
-  const load = () => api.loadOrders().then(setAll);
+  const [prices, setPrices] = useState<Prices>({});
+  const load = () => { api.listPrices().then(setPrices).catch(() => {}); return api.loadOrders().then(setAll); };
   useEffect(() => { load(); }, []);
 
   // most-used categories first, so the filter bar can show the common ones and tuck the rest away
@@ -95,7 +99,12 @@ export default function Dashboard() {
     for (const o of all ?? []) for (const i of o.items) n.set(i.category, (n.get(i.category) ?? 0) + 1);
     return [...n].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([c]) => c);
   }, [all]);
-  const orders = useMemo(() => applyFilters(all ?? [], f), [all, f]);
+  const withAmt = useMemo(() => withAmounts(all ?? [], prices), [all, prices]); // every item gets an amount: exact, your price, or estimated
+  const orders = useMemo(() => applyFilters(withAmt, f), [withAmt, f]);
+  const conf = useMemo(() => confidence(orders), [orders]);
+  const check = useMemo(() => reconcile(all ?? [], prices), [all, prices]);
+  const approx = f.categories.length > 0 && conf.high - conf.low >= 1;
+  const setPrice = async (name: string, price: number | null) => setPrices(await api.setPrice(name, price));
   const k = useMemo(() => kpis(orders), [orders]);
   const dishes = useMemo(() => topItems(orders, "food").sort(byCount), [orders]);
   const groceries = useMemo(() => topItems(orders, "grocery").sort(byCount), [orders]);
@@ -118,7 +127,7 @@ export default function Dashboard() {
   const parts = useMemo(() => filterParts(f), [f]);
   const hasFilter = parts.length > 0 || !!f.from || !!f.to;
   const period = useMemo(() => periodLabel(f, orders), [f, orders]);
-  const cardPeriod = parts.length ? `${period} · filtered` : period;
+  const cardPeriod = parts.length ? `${period} · filtered${approx ? " · estimate" : ""}` : period;
   const tot = (value: string, sub = cardPeriod): CardTotal => ({ value, sub });
   const sumBy = (rows: { count: number }[], n: number) => [rows.slice(0, n).reduce((t, r) => t + r.count, 0), rows.reduce((t, r) => t + r.count, 0)] as const;
   const sumSpend = (rows: { spend: number }[], n: number) => [rows.slice(0, n).reduce((t, r) => t + r.spend, 0), rows.reduce((t, r) => t + r.spend, 0)] as const;
@@ -138,7 +147,7 @@ export default function Dashboard() {
 
   const dash = (n: number) => (n > 0 ? inr(n) : "—");
   const kpiCards: [string, string, string?][] = [
-    ["Total spent", inr(k.total)], ["Orders", String(k.orders)], ["Avg order", inr(k.avgOrder)],
+    ["Total spent", `${approx ? "≈ " : ""}${inr(k.total)}`, approx ? `Estimate. Between ${inr(conf.low)} and ${inr(conf.high)} (see the box above)` : undefined], ["Orders", String(k.orders)], ["Avg order", inr(k.avgOrder)],
     ["Per month", inr(k.perMonth)], ["Fees & taxes", dash(k.fees), k.fees > 0 ? undefined : "Not recorded for this selection (Zomato, Blinkit and Zepto don't report fees)"],
     ["Saved via discounts", dash(k.discount), k.discount > 0 ? undefined : "Not recorded for this selection"],
   ];
@@ -165,9 +174,7 @@ export default function Dashboard() {
         <span className="text-muted">· {period}{parts.length ? " · " + parts.join(" · ") : ""}</span>
         {hasFilter && <button className="btn ml-auto" onClick={() => { setF(emptyFilters); setPage(0); }}>Clear filters</button>}
       </div>
-      {f.categories.length > 0 && (
-        <p className="text-xs text-muted">Amounts below are only the selected categories&apos; share of each order (an estimate where the app gives no item prices). The Orders table shows what you actually paid.</p>
-      )}
+      {f.categories.length > 0 && <AccuracyNote conf={conf} check={check}><ItemPrices orders={orders} prices={prices} onSet={setPrice} /></AccuracyNote>}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
         {kpiCards.map(([l, v, hint]) => (
@@ -233,7 +240,7 @@ export default function Dashboard() {
           </Card>
         )}
         <Card title="Top restaurants by spend (food orders)" className={f.categories.length === 1 ? "lg:col-span-2" : ""} total={tot(`${inr(restTop)} of ${inr(restAll)}`, `top 8 of all restaurants · ${cardPeriod}`)}>
-          <ResponsiveContainer width="100%" height={300}>
+          {vendors.length === 0 ? <p className="text-sm text-muted">No restaurant orders in this selection.</p> : <ResponsiveContainer width="100%" height={300}>
             <BarChart data={vendors} layout="vertical" margin={{ left: 40, right: 56 }}>
               <CartesianGrid stroke="var(--border)" horizontal={false} />
               <XAxis type="number" tick={{ fontSize: 11 }} stroke="var(--muted)" tickFormatter={axisInr} />
@@ -243,7 +250,7 @@ export default function Dashboard() {
                 <LabelList dataKey="value" position="right" formatter={(v: unknown) => inr(Number(v))} style={{ fontSize: 11, fill: "var(--muted)" }} />
               </Bar>
             </BarChart>
-          </ResponsiveContainer>
+          </ResponsiveContainer>}
         </Card>
       </div>
 
@@ -281,12 +288,12 @@ export default function Dashboard() {
                   <td>{o.vendor}</td>
                   <td className="max-w-md text-muted">
                     {open === o.platform + o.id
-                      ? o.items.map((i) => <div key={i.rawName}>{i.qty}× {i.rawName} — {inr(i.unitPrice * i.qty)}</div>)
+                      ? o.items.map((i) => <div key={i.rawName}>{i.qty}× {i.rawName} — {inr(i.amount ?? i.unitPrice * i.qty)} <span className="text-xs">{i.basis === "estimated" ? "est." : i.basis === "entered" ? "your price" : ""}</span></div>)
                       : <span className="line-clamp-1">{o.items.map((i) => `${i.qty}× ${i.name}`).join(", ") || "—"}</span>}
                   </td>
                   <td className="text-right font-medium">
                     {inr(paidOf(o))}
-                    {o.partial && <div className="text-xs font-normal text-muted" title="Share of this order that belongs to the selected categories">selected ≈ {inr(o.total)}</div>}
+                    {o.partial && <div className="text-xs font-normal text-muted" title="Share of this order that belongs to the selected categories">selected {(o.hi ?? 0) - (o.lo ?? 0) < 0.5 ? "" : "≈ "}{inr(o.total)}</div>}
                   </td>
                 </tr>
               ))}

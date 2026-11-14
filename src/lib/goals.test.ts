@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { goalProgress, metricValue, smartTips, recentAverage, suggestGoals, type Goal } from "./goals";
+import { goalProgress, metricValue, smartTips, SENSITIVE, recentAverage, suggestGoals, type Goal } from "./goals";
 import type { Order } from "./types";
 
 let n = 0;
@@ -45,6 +45,21 @@ describe("goals", () => {
     const s = suggestGoals(orders, NOW);
     expect(s.find((g) => g.scope === "food" && g.metric === "spend")?.limit).toBe(700);
     expect(s.find((g) => g.scope === "food" && g.metric === "orders")?.limit).toBe(2);
+  });
+  it("never suggests or mentions habit goals", () => {
+    const habit = [
+      ...Array.from({ length: 6 }, (_, k) => order(at(10, 1 + k), "grocery", 900, "Tobacco")),
+      ...Array.from({ length: 6 }, (_, k) => order(at(9, 1 + k * 3), "grocery", 900, "Tobacco")),
+      ...Array.from({ length: 6 }, (_, k) => order(at(10, 1 + k, 23), "food", 300)),
+    ];
+    expect(suggestGoals(habit, NOW).some((g) => g.metric === "tobacco_orders" || g.metric === "late_night")).toBe(false);
+    const tips = smartTips(habit, NOW).map((t) => t.text).join(" ");
+    expect(tips).not.toMatch(/10pm|late/i);
+    for (const t of smartTips(habit, NOW)) for (const c of SENSITIVE) expect(t.text).not.toContain(c);
+    // an ordinary repeated item still gets a tip, and a Tobacco item with the same name does not
+    const milk = Array.from({ length: 4 }, (_, k) => order(at(10, 2 + k), "grocery", 60));
+    expect(smartTips(milk, NOW).some((t) => t.text.includes("Milk"))).toBe(true);
+    expect(smartTips(habit.filter((o) => o.type === "grocery"), NOW).some((t) => t.text.includes("Milk"))).toBe(false);
   });
   it("tips do not throw on empty data", () => { expect(smartTips([], NOW)).toEqual([]); });
 });

@@ -1,4 +1,5 @@
 import type { Api, FetchEvent } from "./api-types";
+import type { Prices } from "./analytics/amounts";
 import type { Goal } from "./goals";
 
 /** Web (local server) implementation. The Chrome-extension build swaps this module for extension-app/api.ts. */
@@ -13,6 +14,9 @@ export const api: Api = {
   listGoals: () => fetch("/api/goals").then((r) => json<{ goals: Goal[] }>(r)).then((d) => d.goals),
   saveGoals: (g) => fetch("/api/goals", post(g)).then((r) => json<{ goals: Goal[] }>(r)).then((d) => d.goals),
   deleteGoal: (id) => fetch(`/api/goals?id=${encodeURIComponent(id)}`, { method: "DELETE" }).then((r) => json<{ goals: Goal[] }>(r)).then((d) => d.goals),
+
+  listPrices: () => fetch("/api/prices").then((r) => json<{ prices: Prices }>(r)).then((d) => d.prices),
+  setPrice: (name, price) => fetch("/api/prices", post({ name, price })).then((r) => json<{ prices: Prices }>(r)).then((d) => d.prices),
 
   canFetch: () =>
     new Promise<boolean>((resolve) => {

@@ -47,6 +47,10 @@ describe("categorize regressions from a real audit", () => {
   const g = (n: string) => categorize(n, "grocery");
   it("separates look-alikes", () => {
     expect(g("Classic Ice Burst")).toBe("Tobacco");
+    expect(g("Classic Double Burst")).toBe("Tobacco");
+    // restaurant dishes are never tobacco ("Burst" is a pizza/burger word)
+    expect(categorize("Veg Makhani Burst Burger", "food")).not.toBe("Tobacco");
+    expect(categorize("Kheema and Sausages Cheese Burst Pizza [Medium]", "food")).not.toBe("Tobacco");
     expect(g("Flair Hotline Fineliner Highlighter Pen")).not.toBe("Tobacco");
     expect(g("Wonderchef Stainless Steel Gas Lighter")).not.toBe("Tobacco");
     expect(g("Freecultr All-Day Boxers (Orange)")).toBe("Apparel & Accessories");

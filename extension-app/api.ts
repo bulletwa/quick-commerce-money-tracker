@@ -7,6 +7,8 @@ export const api: Api = {
   listGoals: store.listGoals,
   saveGoals: store.saveGoals,
   deleteGoal: store.deleteGoal,
+  listPrices: store.listPrices,
+  setPrice: store.setPrice,
   canFetch: async () => true,
 
   fetchOrders: (platforms, on) =>

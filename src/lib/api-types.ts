@@ -1,3 +1,4 @@
+import type { Prices } from "./analytics/amounts";
 import type { Goal } from "./goals";
 import type { Order, Platform } from "./types";
 
@@ -13,6 +14,9 @@ export interface Api {
   listGoals(): Promise<Goal[]>;
   saveGoals(goals: unknown): Promise<Goal[]>;
   deleteGoal(id: string): Promise<Goal[]>;
+  /** what the user says they usually pay per unit of an item (makes category amounts exact for that item) */
+  listPrices(): Promise<Prices>;
+  setPrice(name: string, price: number | null): Promise<Prices>;
   /** false when the fetcher (the extension, for the web build) is not available */
   canFetch(): Promise<boolean>;
   fetchOrders(platforms: readonly Platform[], on: (e: FetchEvent) => void): Promise<void>;

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import type { Order } from "@/lib/types";
-import { METRICS, METRIC_LABEL, SCOPES, byMonth, describeGoal, goalProgress, limitFromAverage, metricValue, monthKey, recentAverage, smartTips, suggestGoals, type Goal, type Metric, type Progress, type Scope } from "@/lib/goals";
+import { HABIT_METRICS, METRICS, METRIC_LABEL, SCOPES, byMonth, describeGoal, goalProgress, limitFromAverage, metricValue, monthKey, recentAverage, smartTips, suggestGoals, type Goal, type Metric, type Progress, type Scope } from "@/lib/goals";
 import { inr } from "@/lib/format";
 import { api } from "@/lib/api";
 
@@ -126,7 +126,8 @@ export function Goals({ orders }: { orders: Order[] }) {
         <label className="space-y-1"><div className="text-xs text-muted">Applies to</div>
           <select className="input" value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value as Scope })}>{SCOPES.map((s) => <option key={s} value={s}>{s === "all" ? "Food + grocery" : s}</option>)}</select></label>
         <label className="space-y-1"><div className="text-xs text-muted">Track</div>
-          <select className="input" value={form.metric} onChange={(e) => setForm({ ...form, metric: e.target.value as Metric })}>{METRICS.map((m) => <option key={m} value={m}>{METRIC_LABEL[m]}</option>)}</select></label>
+          <select className="input" value={form.metric} onChange={(e) => setForm({ ...form, metric: e.target.value as Metric })}><optgroup label="Spending">{METRICS.filter((m) => !HABIT_METRICS.includes(m)).map((m) => <option key={m} value={m}>{METRIC_LABEL[m]}</option>)}</optgroup>
+            <optgroup label="Habits (only if you want them)">{HABIT_METRICS.map((m) => <option key={m} value={m}>{METRIC_LABEL[m]}</option>)}</optgroup></select></label>
         <label className="space-y-1"><div className="text-xs text-muted">Monthly limit</div>
           <input className="input w-28" inputMode="numeric" value={form.limit} onChange={(e) => setForm({ ...form, limit: e.target.value })} placeholder={form.metric === "spend" ? "5000" : "8"} /></label>
         {formAvg > 0 && (

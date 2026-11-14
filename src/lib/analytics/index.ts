@@ -1,4 +1,5 @@
 import { PLATFORM_LABEL, type Order, type OrderType, type Platform } from "../types";
+import { allocate } from "./amounts";
 
 export interface Filters {
   from?: string; // yyyy-mm-dd
@@ -15,22 +16,25 @@ export const emptyFilters: Filters = { platforms: [], categories: [] };
 
 /**
  * Keep only the selected categories' items and give the order the matching share of its money, so every chart that sums
- * order totals agrees with the filter. Priced orders use item prices for the share; unpriced ones (no item prices from the
- * platform) share by units, which is an estimate. An order made only of selected items is returned untouched.
+ * order totals agrees with the filter. The share comes from per-item amounts (see allocate in ./amounts): exact where the
+ * platform reports item prices, the user's own prices where entered, otherwise an equal-per-unit estimate of what is left.
+ * `lo`/`hi` bound the selected part, so callers can show how sure the number is. An order made only of selected items is untouched.
  */
-function narrowToCategories(o: Order, cats: string[]): Order {
+function narrowToCategories(order: Order, cats: string[]): Order {
+  const o = allocate(order);
   const kept = o.items.filter((i) => cats.includes(i.category));
   if (kept.length === o.items.length) return o;
+  const sum = (xs: Order["items"], pick: (i: Order["items"][number]) => boolean = () => true) => xs.reduce((a, i) => a + (pick(i) ? i.amount ?? 0 : 0), 0);
+  const allAmt = sum(o.items), keptAmt = sum(kept);
   const units = (xs: Order["items"]) => xs.reduce((a, i) => a + i.qty, 0);
-  const keptUnits = units(kept), allUnits = units(o.items);
-  const byUnits = allUnits ? keptUnits / allUnits : 0;
-  let share = byUnits;
-  if (o.itemsPriced !== false) {
-    const all = o.items.reduce((a, i) => a + i.qty * i.unitPrice, 0);
-    share = all > 0 ? kept.reduce((a, i) => a + i.qty * i.unitPrice, 0) / all : byUnits;
-  }
+  const share = allAmt > 0 ? keptAmt / allAmt : units(o.items) ? units(kept) / units(o.items) : 0;
+  const k = allAmt > 0 ? o.total / allAmt : 0; // item amounts -> paid amounts (fees/discounts spread proportionally)
+  const known = (i: Order["items"][number]) => i.basis !== "estimated";
+  const keptEst = kept.some((i) => !known(i));
+  const lo = sum(kept, known) * k;
+  const hi = lo + (keptEst ? sum(o.items, (i) => !known(i)) * k : 0);
   return {
-    ...o, items: kept, allUnits: keptUnits, partial: true, fullTotal: o.total,
+    ...o, items: kept, partial: true, fullTotal: o.total, lo, hi,
     itemTotal: o.itemTotal * share, fees: o.fees * share, discount: o.discount * share, tip: o.tip * share, total: o.total * share,
   };
 }
@@ -93,7 +97,8 @@ export const paidTotal = (orders: Order[]) => orders.reduce((s, o) => s + (o.ful
  * Money attributed to one item line. Orders with item prices use them (exact). Otherwise the order total is shared
  * across its item units (an estimate: exact only for single-item orders, and it includes that order's fees).
  */
-export function lineSpend(o: Order, i: { qty: number; unitPrice: number }): { amount: number; estimated: boolean } {
+export function lineSpend(o: Order, i: { qty: number; unitPrice: number; amount?: number; basis?: string }): { amount: number; estimated: boolean } {
+  if (i.amount != null) return { amount: i.amount, estimated: i.basis === "estimated" };
   if (o.itemsPriced !== false) return { amount: i.qty * i.unitPrice, estimated: false };
   const units = o.allUnits ?? o.items.reduce((a, x) => a + x.qty, 0);
   return { amount: units ? (o.total * i.qty) / units : 0, estimated: true };

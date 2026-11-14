@@ -4,6 +4,7 @@ import path from "node:path";
 import { categorize, normalizeName } from "./enrich/categorize";
 import type { Order } from "./types";
 import type { Goal } from "./goals";
+import type { Prices } from "./analytics/amounts";
 
 const DIR = path.join(process.cwd(), ".data");
 let db: Database.Database | null = null;
@@ -18,6 +19,7 @@ export function getDb() {
     source TEXT NOT NULL DEFAULT 'real', data TEXT NOT NULL,
     PRIMARY KEY (platform, id))`);
   db.exec("CREATE TABLE IF NOT EXISTS goals (id TEXT PRIMARY KEY, data TEXT NOT NULL, created_at TEXT NOT NULL)");
+  db.exec("CREATE TABLE IF NOT EXISTS prices (name TEXT PRIMARY KEY, price REAL NOT NULL)");
   if (!(db.prepare("PRAGMA table_info(orders)").all() as { name: string }[]).some((c) => c.name === "first_seen_at"))
     db.exec("ALTER TABLE orders ADD COLUMN first_seen_at TEXT");
   return db;
@@ -75,3 +77,11 @@ export function saveGoal(g: Goal) {
     .run(g.id, JSON.stringify(g), new Date().toISOString());
 }
 export function deleteGoal(id: string) { getDb().prepare("DELETE FROM goals WHERE id=?").run(id); }
+
+export function listPrices(): Prices {
+  return Object.fromEntries((getDb().prepare("SELECT name, price FROM prices").all() as { name: string; price: number }[]).map((r) => [r.name, r.price]));
+}
+export function setPrice(name: string, price: number | null) {
+  if (price == null) getDb().prepare("DELETE FROM prices WHERE name=?").run(name);
+  else getDb().prepare("INSERT INTO prices (name, price) VALUES (?,?) ON CONFLICT(name) DO UPDATE SET price=excluded.price").run(name, price);
+}

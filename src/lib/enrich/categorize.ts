@@ -9,7 +9,7 @@ const R = (cat: string, re: RegExp, only?: OrderType): Rule => ({ cat, re, only 
 
 const RULES: Rule[] = [
   R("Meals & Combos", /\b(bowl|meal|combo|platter|thali|meal box|lunch box meal)\b/i, "food"),
-  R("Tobacco", /classic (ice|double|balanced|refined|rich|low|mild|verve|connect|regular|milds|ultra)|\bwills\b|navy cut|four square|\bburst\b|marlboro|cigarette|gold ?flake|classic (regular|milds|ultra)|\bmond\b|tobacco|\bzippo\b|(?<!high)(?<!gas )\blighter\b|rolling paper/i),
+  R("Tobacco", /classic (ice|double|balanced|refined|rich|low|mild|verve|connect|regular|milds|ultra)|\bwills\b|navy cut|four square|marlboro|cigarette|gold ?flake|classic (regular|milds|ultra)|\bmond\b|tobacco|\bzippo\b|(?<!high)(?<!gas )\blighter\b|rolling paper/i, "grocery"),
   R("Health & Pharmacy", /tablets?\b|capsules?\b|syrup|\bcough\b|thermometer|nebuli[sz]er|blood pressure|glucometer|first aid|\bmask\b|saridon|zincovit|honitus|kaadha|shilajit|vitamin\b(?! c face)|supplement|\bors\b|bandage|antiseptic|pain relief|\bbalm\b|\bdigital (monitor|thermo)/i),
   R("Electronics & Appliances", /induction|cook ?top|inflator|extension (cable|cord)|\bcable\b|charger|adapter|power ?bank|ear ?(phone|bud)|headphone|speaker|\busb\b|\bbulb\b|\bled\b|string lights|torch|batter(y|ies)|iron box|kettle|trimmer|hair dryer|extension board|pixel light|vacuum|string lights|\bmixer grinder|\bfan\b|\bheater\b/i),
   R("Cleaning & Household", /detergent|cleaner|dish ?wash|toilet|tissue|garbage|trash bag|mosquito|repellent|good ?knight|all ?out|\bhit\b|mortein|odomos|phenyl|harpic|lizol|\bvim\b|freshener|naphthalene|bleach|floor|\bmop\b|scrub|sponge|\bsurf\b|napkin/i),

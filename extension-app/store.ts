@@ -1,5 +1,6 @@
 // All data lives in chrome.storage.local, inside this browser profile. Nothing is sent anywhere.
 import { categorize, normalizeName } from "../src/lib/enrich/categorize";
+import { parsePrice, type Prices } from "../src/lib/analytics/amounts";
 import { parseGoal, type Goal } from "../src/lib/goals";
 import type { Order } from "../src/lib/types";
 
@@ -64,9 +65,21 @@ export function deleteGoal(id: string) {
   });
 }
 
+export const listPrices = () => read<Prices>("prices", {});
+export function setPrice(name: string, price: number | null) {
+  return exclusive(async () => {
+    const p = parsePrice(name, price);
+    if (!p) throw new Error("That isn't a valid price.");
+    const prices = await listPrices();
+    if (p.price == null) delete prices[p.name]; else prices[p.name] = p.price;
+    await chrome.storage.local.set({ prices });
+    return prices;
+  });
+}
+
 export async function exportJson() {
   const rows = await read<Rows>("orders", {});
-  return JSON.stringify({ app: "money-tracker", version: 1, exportedAt: new Date().toISOString(), orders: Object.values(rows).map((r) => r.data), goals: await listGoals() }, null, 1);
+  return JSON.stringify({ app: "money-tracker", version: 1, exportedAt: new Date().toISOString(), orders: Object.values(rows).map((r) => r.data), goals: await listGoals(), prices: await listPrices() }, null, 1);
 }
 
 const isOrder = (o: unknown): o is Order => {
@@ -76,7 +89,7 @@ const isOrder = (o: unknown): o is Order => {
     && Number.isFinite(x.total) && Array.isArray(x.items) && typeof x.vendor === "string";
 };
 export async function importJson(text: string) {
-  let j: { orders?: unknown[]; goals?: unknown[] };
+  let j: { orders?: unknown[]; goals?: unknown[]; prices?: Record<string, unknown> };
   try { j = JSON.parse(text); } catch { throw new Error("That file isn't a Money Tracker backup."); }
   if (!j || !Array.isArray(j.orders)) throw new Error("That file isn't a Money Tracker backup.");
   const orders = j.orders.filter(isOrder);
@@ -84,7 +97,8 @@ export async function importJson(text: string) {
   await upsertOrders(orders);
   const goals = (j.goals ?? []).map(parseGoal).filter((g): g is Goal => !!g);
   if (goals.length) await saveGoals(goals);
+  for (const [name, price] of Object.entries(j.prices && typeof j.prices === "object" ? j.prices : {})) { const p = parsePrice(name, price); if (p?.price != null) await setPrice(p.name, p.price); }
   return { orders: orders.length, goals: goals.length };
 }
 
-export const clearAll = () => chrome.storage.local.remove(["orders", "goals"]);
+export const clearAll = () => chrome.storage.local.remove(["orders", "goals", "prices"]);

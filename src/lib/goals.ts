@@ -14,6 +14,10 @@ export interface Goal {
 }
 
 export const SCOPES: Scope[] = ["food", "grocery", "all"];
+/** Categories the app never singles out in suggestions or tips. You can still add goals about them yourself. */
+export const SENSITIVE = ["Tobacco", "Health & Pharmacy"];
+/** Goal types about personal habits: available in the form, never suggested. */
+export const HABIT_METRICS: Metric[] = ["late_night", "tobacco_orders"];
 export const METRICS: Metric[] = ["spend", "orders", "small_orders", "late_night", "tobacco_orders"];
 export const METRIC_LABEL: Record<Metric, string> = {
   spend: "Spend (₹)", orders: "Orders", small_orders: "Small orders", late_night: "Late-night orders (10pm–4am)", tobacco_orders: "Orders with tobacco",
@@ -130,8 +134,6 @@ export function suggestGoals(orders: Order[], now = new Date()): Omit<Goal, "id"
     const small = avg(scope, "small_orders", 200);
     if (small >= 0.5) out.push({ label: `${scope === "food" ? "Food" : "Grocery"} orders under ₹200`, scope, metric: "small_orders", threshold: 200, limit: Math.max(1, limitFromAverage("small_orders", small)) });
   }
-  const toba = avg("grocery", "tobacco_orders");
-  if (toba >= 0.5) out.push({ label: "Orders with tobacco", scope: "grocery", metric: "tobacco_orders", limit: limitFromAverage("tobacco_orders", toba) });
   return out;
 }
 
@@ -155,7 +157,7 @@ export function smartTips(orders: Order[], now = new Date()): Tip[] {
 
   // Grocery items re-ordered often (subscription / bulk candidates)
   const counts = new Map<string, number>();
-  for (const o of recent) if (o.type === "grocery") for (const n of new Set(o.items.map((i) => i.name))) counts.set(n, (counts.get(n) ?? 0) + 1);
+  for (const o of recent) if (o.type === "grocery") for (const n of new Set(o.items.filter((i) => !SENSITIVE.includes(i.category)).map((i) => i.name))) counts.set(n, (counts.get(n) ?? 0) + 1);
   const rep = [...counts.entries()].filter(([, c]) => c >= 3).sort((a, b) => b[1] - a[1]).slice(0, 2);
   for (const [n, c] of rep) tips.push({ tone: "info", text: `${n} ordered in ${c} separate orders in the last 30 days. Folding it into one planned order (or a subscription, if offered) saves repeat delivery and handling fees.` });
 
@@ -164,11 +166,6 @@ export function smartTips(orders: Order[], now = new Date()): Tip[] {
   for (const o of recent) if (o.type === "food") vend.set(o.vendor, (vend.get(o.vendor) ?? 0) + 1);
   const tv = [...vend.entries()].sort((a, b) => b[1] - a[1])[0];
   if (tv && tv[1] >= 4) tips.push({ tone: "info", text: `${tv[1]} orders from ${tv[0]} in the last 30 days. Ordering direct from them, or cooking the repeat dish at home, may be cheaper.` });
-
-  // Late-night food share
-  const food = recent.filter((o) => o.type === "food");
-  const late = food.filter((o) => { const h = new Date(o.placedAt).getHours(); return h >= 22 || h < 4; });
-  if (food.length >= 5 && late.length / food.length >= 0.3) tips.push({ tone: "warn", text: `${Math.round((late.length / food.length) * 100)}% of your food orders in the last 30 days were between 10pm and 4am.` });
 
   // Spending pace vs typical month
   for (const scope of ["grocery", "food"] as const) {
