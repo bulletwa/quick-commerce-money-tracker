@@ -74,11 +74,11 @@ Long work must not block one call for minutes; Blinkit is split into batched wor
 
 | Platform | Route | Notes |
 |---|---|---|
-| Zomato | `GET /webroutes/user/orders?page=N` | ~106 pages, 6 in parallel. `entities.ORDER` keyed by real id with `orderDate` (full date with year), `totalCost`, `dishString`, `resInfo`. **Keep only `deliveryDetails.deliveryLabel === "Delivered"`.** Skipped: "Payment Incomplete" (never charged, ~140), "Refund Completed" (~23; 8 of those were delivered then refunded), "Rejected". Counting payment-failed orders inflates spend (another extension does; ours is correct). No item prices. When the web login is gone the error says so plainly. |
+| Zomato | `GET /webroutes/user/orders?page=N` | ~106 pages, 6 in parallel. `entities.ORDER` keyed by real id with `orderDate` (full date with year), `totalCost`, `dishString`, `resInfo`. **Keep only `deliveryDetails.deliveryLabel === "Delivered"`.** Skipped: "Payment Incomplete" (never charged, ~140), "Refund Completed" (~23; 8 of those were delivered then refunded), "Rejected". Counting payment-failed orders inflates spend (another extension does; ours is correct). **Item prices:** `GET /webroutes/order/details?hashId=<hashId>` (hashId comes from the list) returns `details.order.items.dish[]` (`itemName`, `quantity`, `totalCost`) plus groups `item_total`, `voucher_discount` (negative), `*_discount` such as `salt_discount` (positive), `tax`, `charge[]`, `platform_charge`, `total_user`. Verified on 54 orders back to 2018. **Status (14 Nov 2026): the website has no login any more** (`/login`, `m.zomato.com` redirect to an "Order on app" page; `/webroutes/*` return 401 once the old session ends), so neither route can be refreshed. The orders already stored are kept; new ones need another source (e.g. emailed receipts). The extension reports `web-login-closed`. |
 | Swiggy | `GET /dapi/order/all?order_id=<last id>` | Cursor = last order id until an empty page. Web history only reaches ~1 year (~33 orders). **Only platform with real item prices.** Fees = total − itemTotal + discount. |
 | Instamart | `GET https://instamart.in/api/instamart/orders?order_type=DASH&count=10&from_time=<ms>` | Only a handful of recent orders exist. |
-| Blinkit | `POST https://blinkit.com/v1/layout/order_history` (cursor `pagination.next_url`) then `POST /v1/layout/order_details/<id>?cart_id=<cart>` per order for items | Headers: `access_token`, `app_client: consumer_web`, `app_version: 1010101010`, `auth_key`, `device_id`. Dates have **no year** (inferred walking newest→oldest) and older orders have **no time** (noon IST assumed). Details fetched in batches of 4, 400 ms gap, 3 passes. Takes a few minutes. Exact item prices read from order details (commit ef37798). |
-| Zepto | `GET https://bff-gateway.zepto.com/api/v2/order/?page_number=N` | 4 pages in parallel; uses the `PLACEHOLDER_SIGNATURE` trick, `Appversion 17.2.2` and `x-xsrf-token` from the cookie. |
+| Blinkit | `POST https://blinkit.com/v1/layout/order_history` (cursor `pagination.next_url`) then `POST /v1/layout/order_details/<id>?cart_id=<cart>` per order for items | Headers: `access_token`, `app_client: consumer_web`, `app_version: 1010101010`, `auth_key`, `device_id`. Dates have **no year** (inferred walking newest→oldest) and older orders have **no time** (noon IST assumed). Details fetched in batches of 4, 400 ms gap, 3 passes. Takes a few minutes. The same `order_details` response carries exact prices: `z_v3_image_text_snippet_type_30` has `title.text`, `subtitle1.text` ("10 pcs x 2", quantity = trailing `x N`) and `subtitle3.text` (line price; a struck-through MRP may come first, so take the last ₹ number); `cart_bill_item` rows (`left_header.text` / `right_header.text`, "-₹14" = discount) give MRP, Item total, fees, tip, Bill total. Tested on 24 orders across all history; item prices equal "Item total" every time (commit ef37798). |
+| Zepto | `GET https://bff-gateway.zepto.com/api/v2/order/?page_number=N` | 4 pages in parallel; uses the `PLACEHOLDER_SIGNATURE` trick, `Appversion 17.2.2` and `x-xsrf-token` from the cookie. **Item prices:** `POST https://bff-gateway.zepto.com/pfs-postorder/api/v1/get-page/ORDER_DETAILS` body `{orderId, page_size:8, isArchived:false, enforce_platform_type:"DESKTOP"}`, same headers; `orderProducts[]` (found by recursive search) has `storeProduct.product.name`, `quantityFulfilled`/`quantityOrdered`, `totalFinalSellingPrice` and `totalMrp` in paise. Tested on 24 orders; item units matched the list's `itemQuantityCount`. The page only renders when reached by clicking through the app, not by direct URL. |
 
 The Blinkit date regex (date with optional year, optional time) is in `extension/background.js`; Blinkit mapping is
 `mapBlinkit(raws, now)` in `src/lib/connectors/grocery-web.ts`.
@@ -97,10 +97,15 @@ Mappers (pure functions, unit-tested in `src/lib/connectors/web.test.ts`):
   wipes saved items when a re-fetch comes back with none** (a failed detail read must not destroy data). Returns `{added, updated}`.
 - Dates are stored UTC; a day can differ from IST near midnight.
 
-### Spend is partly an estimate
-Only Swiggy (and Blinkit where order details give prices) has real per-item prices. Otherwise `lineSpend(o, i)` in
-`src/lib/analytics/index.ts` **shares the order total across item units** and the UI flags it "≈". Users can also set manual
-prices (`/api/prices`, `src/lib/analytics/amounts.ts`). `categorySpend`, `topItems`, `itemDetail` all go through `lineSpend`.
+### Item prices: exact where known, estimated otherwise
+`src/lib/analytics/amounts.ts` (`allocate`) gives every item an `amount` and `basis` (`exact` / `entered` / `estimated`) so an order's
+items always add up to what was paid; a category filter carries `lo`/`hi` bounds and the accuracy box (`AccuracyNote.tsx`) says how sure
+the number is. After the detail routes (section 4) Blinkit, Zepto and Zomato orders are `exact` **only if the detail reconciles with the
+platform's own totals** (`pricedFromDetail`, `blinkitPriced`, `zeptoPriced`); otherwise they stay `estimated` (equal share per unit) and the user can
+enter a usual price per item (`ItemPrices.tsx`, `/api/prices`). Swiggy was always exact; Instamart (about 6 orders) is estimated.
+The extension's worker (`extension-app/background.js`, `DETAILS` map + `fetchPlatform`) reads details only for orders not yet priced in storage,
+upserts per batch, and never replaces a priced order with a list-only copy. Tests: `extension-app/runners.test.ts`, `worker.test.ts`,
+`src/lib/connectors/web.test.ts`.
 
 ## 6. Dashboard code map
 
@@ -121,7 +126,9 @@ Start from scratch: stop the app, delete `.data/orders.db*`. Server stdout goes 
 
 ## 8. Known limits and open items
 
-- Instamart web shows only ~6 orders; Swiggy web ~1 year; Zomato/Zepto/Instamart list responses carry no item prices.
+- **Zomato web login is gone (seen 14 Nov 2026).** No way to refresh Zomato orders or fetch per-dish prices from the browser. Options discussed with the user, not yet chosen: read Zomato's emailed receipts from Gmail via a logged-in Gmail tab, a pasted sample receipt, or leave Zomato estimated. Do not read the user's mail without explicit consent.
+- The extensions this method was learned from (MunchMetrics, "Spending Calculator For Zepto & Blinkit", "Total Damage") are not in this Mac's Chrome profile, so their code cannot be re-read here.
+- Instamart web shows only ~6 orders; Swiggy web ~1 year; the Zomato/Zepto/Instamart *list* responses carry no item prices (Zomato/Zepto detail routes do; see section 4).
 - Older Blinkit orders have an assumed noon time; Blinkit years are inferred.
 - Unverified: the idle auto-shutdown has not been observed end to end (the user's open tab kept pinging).
 - A comparison with another extension ("Total Damage" / "Data check") showed Zomato matches once payment-failed orders are
