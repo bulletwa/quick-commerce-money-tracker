@@ -1,38 +1,48 @@
 "use client";
 import { useMemo, useState } from "react";
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { PLATFORM_LABEL } from "@/lib/types";
-import { byCount, bySpend, categorySpend, groupSum, heatmap, insights, kpis, spendOverTime, topItems } from "@/lib/analytics";
-import { PALETTE, PLATFORM_COLOR, inr } from "@/lib/format";
+import { byCount, categorySpend, groupSum, heatmap, kpis, spendOverTime, topItems } from "@/lib/analytics";
+import { PLATFORM_COLOR, inr } from "@/lib/format";
 import { ItemDrill } from "../ItemDrill";
-import { Art3D } from "../art/images";
+import { Art3D, categoryArt } from "../art/images";
 import { useData } from "../app/Data";
 import { FilterStrip } from "../app/FilterStrip";
-import { Card, Empty, Tip, axisInr, short, tip, type CardTotal } from "../app/ui";
+import { Card, Empty, axisInr, tip } from "../app/ui";
 import type { TabId } from "../app/route";
 
-function TopList({ rows, metric, onPick }: { rows: { name: string; count: number; spend: number; estimated: number; orders: number }[]; metric: "count" | "spend"; onPick: (name: string) => void }) {
-  const max = Math.max(1, ...rows.map((r) => r[metric]));
-  if (!rows.length) return <p className="text-sm text-muted">No data for these filters.</p>;
-  if (metric === "count" && rows[0].orders < 2) return <p className="text-sm text-muted">Nothing has been ordered more than once in this selection yet.</p>;
+type Row = { key: string; label: string; value: number; right?: string; lead?: React.ReactNode; onPick?: () => void };
+
+/** A ranked list drawn with plain bars: no axes to read, nothing to clip. Shows the top few, with "Show all" for the rest. */
+function Bars({ rows, fmt = inr, top = 6, color = "var(--accent)" }: { rows: Row[]; fmt?: (n: number) => string; top?: number; color?: string }) {
+  const [all, setAll] = useState(false);
+  const max = Math.max(1, ...rows.map((r) => r.value));
+  const shown = all ? rows : rows.slice(0, top);
+  if (!rows.length) return <p className="text-sm text-muted">Nothing here for this selection.</p>;
   return (
-    <ol className="space-y-1">
-      {rows.map((r, i) => (
-        <li key={r.name} className="text-sm">
-          <button className="block w-full rounded px-1 py-1 text-left hover:bg-border/40" onClick={() => onPick(r.name)} title="Click for details">
-            <div className="flex justify-between gap-2">
-              <span className="truncate">{i + 1}. {r.name}</span>
-              <span className="shrink-0 text-muted" title={r.estimated ? "Estimated: this platform gives no item prices, so the order total is shared across its items" : undefined}>
-                {r.count}× · {r.estimated ? "est. " : ""}{inr(r.spend)}
-              </span>
-            </div>
-            <div className="mt-1 h-1.5 rounded bg-border"><div className="h-1.5 rounded bg-accent" style={{ width: `${(r[metric] / max) * 100}%` }} /></div>
-          </button>
-        </li>
-      ))}
-    </ol>
+    <div>
+      <ol className="space-y-3">
+        {shown.map((r, i) => {
+          const inner = (
+            <>
+              <div className="flex items-center gap-3">
+                <span className="grid h-8 w-8 shrink-0 place-items-center">{r.lead ?? <span className="text-sm font-semibold text-muted">{i + 1}</span>}</span>
+                <span className="min-w-0 flex-1 break-words font-medium leading-snug">{r.label}</span>
+                <span className="num shrink-0 font-semibold">{r.right ?? fmt(r.value)}</span>
+              </div>
+              <div className="ml-11 mt-1.5 h-2 overflow-hidden rounded-full bg-border"><div className="h-2 rounded-full" style={{ width: `${Math.max(2, (r.value / max) * 100)}%`, background: color }} /></div>
+            </>
+          );
+          return <li key={r.key}>{r.onPick ? <button className="block w-full rounded-lg text-left hover:bg-border/30" onClick={r.onPick}>{inner}</button> : inner}</li>;
+        })}
+      </ol>
+      {rows.length > top && <button className="btn btn-quiet mt-3" onClick={() => setAll(!all)}>{all ? "Show fewer" : `Show all ${rows.length}`}</button>}
+    </div>
   );
 }
+
+const SECTIONS = [["overview", "Overview"], ["favourites", "Favourites"], ["where", "Where it goes"], ["when", "When"]] as const;
+type Section = (typeof SECTIONS)[number][0];
 
 function Heatmap({ grid }: { grid: number[][] }) {
   const max = Math.max(1, ...grid.flat());
@@ -56,137 +66,112 @@ function Heatmap({ grid }: { grid: number[][] }) {
 }
 
 export function Spending({ go }: { go: (t: TabId) => void }) {
-  const { all, orders, f, conf, approx, cardPeriod } = useData();
+  const { all, orders, f, conf, approx, cardPeriod, period } = useData();
+  const [sec, setSec] = useState<Section>("overview");
   const [grain, setGrain] = useState<"month" | "week" | "day">("month");
   const [drill, setDrill] = useState<string | null>(null);
 
   const k = useMemo(() => kpis(orders), [orders]);
   const dishes = useMemo(() => topItems(orders, "food").sort(byCount), [orders]);
   const groceries = useMemo(() => topItems(orders, "grocery").sort(byCount), [orders]);
-  const bySpendItems = useMemo(() => topItems(orders).sort(bySpend), [orders]);
-  const platform = useMemo(() => {
-    const rows = groupSum(orders, (o) => o.platform);
-    const sum = rows.reduce((t, r) => t + r.value, 0) || 1;
-    return rows.map((r) => ({ label: `${PLATFORM_LABEL[r.key]} · ${inr(r.value)} (${Math.round((r.value / sum) * 100)}%)`, key: r.key, value: r.value, orders: r.orders }));
-  }, [orders]);
+  const platform = useMemo(() => groupSum(orders, (o) => o.platform), [orders]);
   const cats = useMemo(() => categorySpend(orders), [orders]);
   const time = useMemo(() => spendOverTime(orders, grain), [orders, grain]);
-  const vendorsAll = useMemo(() => groupSum(orders.filter((o) => o.type === "food"), (o) => o.vendor as string), [orders]);
-  const vendors = useMemo(() => vendorsAll.slice(0, 8), [vendorsAll]);
-  const fees = useMemo(() => [{ name: "Item total", value: orders.reduce((s, o) => s + o.itemTotal, 0) }, { name: "Fees & taxes", value: k.fees }, { name: "Tips", value: k.tip }], [orders, k]);
-  const lines = useMemo(() => insights(orders), [orders]);
+  const vendors = useMemo(() => groupSum(orders.filter((o) => o.type === "food"), (o) => o.vendor as string), [orders]);
   const heat = useMemo(() => heatmap(orders), [orders]);
   const foodSum = useMemo(() => orders.filter((o) => o.type === "food").reduce((t, o) => t + o.total, 0), [orders]);
   const grocSum = useMemo(() => orders.filter((o) => o.type === "grocery").reduce((t, o) => t + o.total, 0), [orders]);
 
   if (!all) return <p className="text-muted">Loading…</p>;
-  if (!all.length) return <Empty art={<Art3D name="receipt" size={96} />} title="Nothing to chart yet"><p>Once your orders are read, you&apos;ll see where the money goes: by month, platform, category and favourite items.</p><button className="btn btn-primary" onClick={() => go("home")}>Go to Home</button></Empty>;
+  if (!all.length) return <Empty art={<Art3D name="receipt" size={96} />} title="Nothing to chart yet"><p>Once your orders are read, you&apos;ll see where the money goes: by month, app, category and favourite items.</p><button className="btn btn-primary" onClick={() => go("home")}>Go to Home</button></Empty>;
 
-  const tot = (value: string, sub = cardPeriod): CardTotal => ({ value, sub });
-  const sumBy = (rows: { count: number }[], n: number) => [rows.slice(0, n).reduce((t, r) => t + r.count, 0), rows.reduce((t, r) => t + r.count, 0)] as const;
-  const sumSpend = (rows: { spend: number }[], n: number) => [rows.slice(0, n).reduce((t, r) => t + r.spend, 0), rows.reduce((t, r) => t + r.spend, 0)] as const;
-  const dash = (n: number) => (n > 0 ? inr(n) : "—");
-  const kpiCards: [string, string, string?][] = [
-    ["Total spent", `${approx ? "≈ " : ""}${inr(k.total)}`, approx ? `Estimate. Between ${inr(conf.low)} and ${inr(conf.high)}` : undefined], ["Orders", String(k.orders)], ["Avg order", inr(k.avgOrder)],
-    ["Per month", inr(k.perMonth)], ["Fees & taxes", dash(k.fees), k.fees > 0 ? undefined : "Not recorded for this selection (Zomato, Blinkit and Zepto don't report fees)"],
-    ["Saved via discounts", dash(k.discount), k.discount > 0 ? undefined : "Not recorded for this selection"],
-  ];
-  const [dTop, dAll] = sumBy(dishes, 8), [gTop, gAll] = sumBy(groceries, 8), [sTop, sAll] = sumSpend(bySpendItems, 8);
-  const anyEst = bySpendItems.some((r) => r.estimated > 0);
-  const restTop = vendors.reduce((t, r) => t + r.value, 0), restAll = vendorsAll.reduce((t, r) => t + r.value, 0);
+  const split = foodSum + grocSum || 1;
+  const anyEst = [...dishes, ...groceries].some((r) => r.estimated > 0);
+  const itemRows = (rows: typeof dishes): Row[] => rows.map((r) => ({ key: r.name, label: r.name, value: r.count, right: `${r.count}×`, onPick: () => setDrill(r.name) }));
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <h1 className="page-title">Spending</h1>
-      <Tip id="spending">Tap any dish or item in the lists to see every time you ordered it. Use the filters to look at one app, one category or one stretch of time.</Tip>
       <FilterStrip />
+
       {orders.length > 0 && <>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-          {kpiCards.map(([l, v, hint]) => (
-            <div key={l} className="card card-primary rise" title={hint}><div className="text-xs text-muted">{l}</div><div className="num mt-1 text-xl font-semibold">{v}</div></div>
-          ))}
-        </div>
-
-        <Card title="Highlights"><ul className="grid gap-1 text-sm md:grid-cols-2">{lines.map((l) => <li key={l}>• {l}</li>)}</ul></Card>
-
-        <div className="grid gap-4 lg:grid-cols-3">
-          <Card title="Spend over time" className="lg:col-span-2" total={tot(inr(k.total), `Food ${inr(foodSum)} · Grocery ${inr(grocSum)} · ${cardPeriod}`)}>
-            <div className="mb-2 flex gap-2">
-              {(["month", "week", "day"] as const).map((g) => <button key={g} className="chip" data-on={grain === g} aria-pressed={grain === g} onClick={() => setGrain(g)}>{g}</button>)}
+        <section className="card card-primary space-y-4" aria-label="Total">
+          <div>
+            <div className="text-sm text-muted">{f.categories.length || f.type || f.platforms.length ? "You spent (filtered)" : "You've spent"}</div>
+            <div className="num big text-5xl">{approx ? "≈ " : ""}{inr(k.total)}</div>
+            <div className="mt-1 text-sm text-muted">{period}{approx ? ` · between ${inr(conf.low)} and ${inr(conf.high)}` : ""}</div>
+          </div>
+          <div>
+            <div className="flex h-3 overflow-hidden rounded-full bg-border" role="img" aria-label={`Food ${inr(foodSum)}, groceries ${inr(grocSum)}`}>
+              <div style={{ width: `${(foodSum / split) * 100}%`, background: "var(--c-food)" }} /><div style={{ width: `${(grocSum / split) * 100}%`, background: "var(--c-grocery)" }} />
             </div>
-            <ResponsiveContainer width="100%" height={260}>
-              <AreaChart data={time}>
-                <CartesianGrid stroke="var(--border)" vertical={false} />
-                <XAxis dataKey="period" tick={{ fontSize: 11 }} stroke="var(--muted)" />
-                <YAxis tick={{ fontSize: 11 }} stroke="var(--muted)" tickFormatter={axisInr} />
-                <Tooltip {...tip} /><Legend />
-                <Area type="monotone" dataKey="food" stackId="1" name="Food" stroke="var(--c-food)" fill="var(--c-food)" fillOpacity={0.28} />
-                <Area type="monotone" dataKey="grocery" stackId="1" name="Grocery" stroke="var(--c-grocery)" fill="var(--c-grocery)" fillOpacity={0.28} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </Card>
-          <Card title="Spend by platform" total={tot(inr(k.total), `${k.orders.toLocaleString("en-IN")} orders · ${cardPeriod}`)}>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie data={platform} dataKey="value" nameKey="label" cy="38%" innerRadius={50} outerRadius={80} paddingAngle={2}>
-                  {platform.map((p) => <Cell key={p.key} fill={PLATFORM_COLOR[p.key]} />)}
-                </Pie>
-                <Tooltip {...tip} /><Legend verticalAlign="bottom" />
-              </PieChart>
-            </ResponsiveContainer>
-          </Card>
+            <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm">
+              <span><span className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full" style={{ background: "var(--c-food)" }} />Food {inr(foodSum)}</span>
+              <span><span className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full" style={{ background: "var(--c-grocery)" }} />Groceries {inr(grocSum)}</span>
+            </div>
+          </div>
+          <dl className="grid grid-cols-3 gap-3 border-t border-border pt-4 text-sm">
+            {[["Orders", k.orders.toLocaleString("en-IN")], ["Average order", inr(k.avgOrder)], ["Per month", inr(k.perMonth)]].map(([l, v]) => (
+              <div key={l}><dt className="text-muted">{l}</dt><dd className="num text-lg font-semibold">{v}</dd></div>
+            ))}
+          </dl>
+        </section>
+
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Spending sections">
+          {SECTIONS.map(([id, label]) => <button key={id} className="chip" data-on={sec === id} aria-pressed={sec === id} onClick={() => setSec(id)}>{label}</button>)}
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-3">
-          <Card title="Most ordered dishes" total={tot(`${dTop} of ${dAll}`, `dishes ordered (top 8 of all) · ${cardPeriod}`)}><TopList rows={dishes.slice(0, 8)} metric="count" onPick={setDrill} /></Card>
-          <Card title="Most bought groceries" total={tot(`${gTop} of ${gAll}`, `units bought (top 8 of all) · ${cardPeriod}`)}><TopList rows={groceries.slice(0, 8)} metric="count" onPick={setDrill} /></Card>
-          <Card title="Where the money went (top items by spend)" total={tot(`${anyEst ? "est. " : ""}${inr(sTop)} of ${inr(sAll)}`, `top 8 items of all · ${cardPeriod}`)}><TopList rows={bySpendItems.slice(0, 8)} metric="spend" onPick={setDrill} /></Card>
-        </div>
-        {anyEst && <p className="-mt-2 text-xs text-muted">est. = estimated. Some platforms don&apos;t report item prices, so each order&apos;s total is shared across its items.</p>}
-
-        <div className="grid gap-4 lg:grid-cols-2">
-          {f.categories.length !== 1 && (
-            <Card title="Spend by category" total={tot(inr(cats.reduce((t, c) => t + c.value, 0)), cardPeriod)}>
-              <ResponsiveContainer width="100%" height={Math.max(300, cats.length * 26)}>
-                <BarChart data={cats} layout="vertical" margin={{ left: 40, right: 56 }} barCategoryGap={4}>
-                  <CartesianGrid stroke="var(--border)" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 11 }} stroke="var(--muted)" tickFormatter={axisInr} />
-                  <YAxis type="category" dataKey="name" width={130} interval={0} tick={{ fontSize: 11 }} stroke="var(--muted)" />
-                  <Tooltip {...tip} />
-                  <Bar dataKey="value" radius={4}>
-                    {cats.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
-                    <LabelList dataKey="value" position="right" formatter={(v: unknown) => inr(Number(v))} style={{ fontSize: 11, fill: "var(--muted)" }} />
-                  </Bar>
-                </BarChart>
+        {sec === "overview" && (
+          <div className="grid gap-4 lg:grid-cols-5">
+            <Card title="Over time" className="lg:col-span-3">
+              <div className="mb-2 flex gap-2">
+                {(["month", "week", "day"] as const).map((g) => <button key={g} className="chip" data-on={grain === g} aria-pressed={grain === g} onClick={() => setGrain(g)}>{g === "month" ? "By month" : g === "week" ? "By week" : "By day"}</button>)}
+              </div>
+              <ResponsiveContainer width="100%" height={260}>
+                <AreaChart data={time} margin={{ left: 0, right: 8 }}>
+                  <CartesianGrid stroke="var(--border)" vertical={false} />
+                  <XAxis dataKey="period" tick={{ fontSize: 11 }} stroke="var(--muted)" minTickGap={24} />
+                  <YAxis tick={{ fontSize: 11 }} stroke="var(--muted)" tickFormatter={axisInr} width={48} />
+                  <Tooltip {...tip} /><Legend />
+                  <Area type="monotone" dataKey="food" stackId="1" name="Food" stroke="var(--c-food)" fill="var(--c-food)" fillOpacity={0.3} />
+                  <Area type="monotone" dataKey="grocery" stackId="1" name="Grocery" stroke="var(--c-grocery)" fill="var(--c-grocery)" fillOpacity={0.3} />
+                </AreaChart>
               </ResponsiveContainer>
             </Card>
-          )}
-          <Card title="Top restaurants by spend (food orders)" className={f.categories.length === 1 ? "lg:col-span-2" : ""} total={tot(`${inr(restTop)} of ${inr(restAll)}`, `top 8 of all restaurants · ${cardPeriod}`)}>
-            {vendors.length === 0 ? <p className="text-sm text-muted">No restaurant orders in this selection.</p> : <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={vendors} layout="vertical" margin={{ left: 40, right: 56 }}>
-                <CartesianGrid stroke="var(--border)" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 11 }} stroke="var(--muted)" tickFormatter={axisInr} />
-                <YAxis type="category" dataKey="key" width={150} interval={0} tick={{ fontSize: 11 }} stroke="var(--muted)" tickFormatter={(v: string) => short(v, 22)} />
-                <Tooltip {...tip} />
-                <Bar dataKey="value" fill="var(--accent)" radius={4}><LabelList dataKey="value" position="right" formatter={(v: unknown) => inr(Number(v))} style={{ fontSize: 11, fill: "var(--muted)" }} /></Bar>
-              </BarChart>
-            </ResponsiveContainer>}
-          </Card>
-        </div>
+            <Card title="By app" className="lg:col-span-2">
+              <Bars top={5} rows={platform.map((p) => ({ key: p.key, label: PLATFORM_LABEL[p.key], value: p.value, right: `${inr(p.value)} · ${Math.round((p.value / (k.total || 1)) * 100)}%`,
+                lead: <span className="grid h-8 w-8 place-items-center rounded-lg text-sm font-bold text-white" style={{ background: PLATFORM_COLOR[p.key] }} aria-hidden="true">{PLATFORM_LABEL[p.key][0]}</span> }))} />
+            </Card>
+          </div>
+        )}
 
-        <div className="grid gap-4 lg:grid-cols-3">
-          <Card title="When you order (day × hour)" className="lg:col-span-2" total={tot(`${k.orders.toLocaleString("en-IN")} orders`, cardPeriod)}><Heatmap grid={heat} /></Card>
-          <Card title="Where each rupee goes" total={tot(inr(k.total), cardPeriod)}>
-            {k.fees + k.tip > 0 ? (
-              <ResponsiveContainer width="100%" height={180}>
-                <PieChart>
-                  <Pie data={fees} dataKey="value" nameKey="name" outerRadius={70}>{fees.map((_, i) => <Cell key={i} fill={["var(--accent)", "var(--warn)", "var(--c-food)"][i]} />)}</Pie>
-                  <Tooltip {...tip} /><Legend formatter={(n, e) => `${n} · ${inr(Number((e.payload as { value?: number } | undefined)?.value ?? 0))}`} />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : <p className="text-sm text-muted">No fees or tips were recorded for this selection, so everything you paid is item cost ({inr(fees[0].value)}).</p>}
-          </Card>
-        </div>
+        {sec === "favourites" && <>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card title="Dishes you keep ordering"><Bars top={6} fmt={(n) => `${n}×`} rows={itemRows(dishes)} /></Card>
+            <Card title="Groceries you keep buying"><Bars top={6} fmt={(n) => `${n}×`} color="var(--c-grocery)" rows={itemRows(groceries)} /></Card>
+          </div>
+          <p className="text-xs text-muted">Tap an item to see every order of it.{anyEst ? " Prices are estimated when an app doesn't report them." : ""}</p>
+        </>}
+
+        {sec === "where" && (
+          <div className="grid gap-4 lg:grid-cols-2">
+            {f.categories.length !== 1 && <Card title="By category"><Bars top={6} rows={cats.map((c) => ({ key: c.name, label: c.name, value: c.value, lead: <Art3D name={categoryArt(c.name)} size={30} /> }))} /></Card>}
+            <Card title="Restaurants you spend most at" className={f.categories.length === 1 ? "lg:col-span-2" : ""}><Bars top={6} rows={vendors.map((v) => ({ key: v.key, label: v.key, value: v.value }))} /></Card>
+            <Card title="Fees, tips and savings" className="lg:col-span-2">
+              <ul className="grid gap-3 text-sm sm:grid-cols-3">
+                <li><div className="text-muted">Fees &amp; taxes</div><div className="num text-lg font-semibold">{k.fees > 0 ? inr(k.fees) : "Not recorded"}</div></li>
+                <li><div className="text-muted">Tips</div><div className="num text-lg font-semibold">{k.tip > 0 ? inr(k.tip) : "None"}</div></li>
+                <li><div className="text-muted">Saved with discounts</div><div className="num text-lg font-semibold">{k.discount > 0 ? inr(k.discount) : "Not recorded"}</div></li>
+              </ul>
+              {k.fees === 0 && <p className="mt-3 text-xs text-muted">Zomato, Blinkit and Zepto don&apos;t report fees, so they&apos;re already inside what you paid.</p>}
+            </Card>
+          </div>
+        )}
+
+        {sec === "when" && (
+          <Card title="When you order"><Heatmap grid={heat} /></Card>
+        )}
+        <p className="text-xs text-muted">{cardPeriod}</p>
       </>}
       {drill && <ItemDrill orders={orders} name={drill} onClose={() => setDrill(null)} />}
     </div>
