@@ -6,6 +6,7 @@
 > To move data from the local app: run `python3 scripts/export-local-backup.py`, then choose `.data/backup.json` with **Import backup** in the extension's dashboard.
 > **Developers / new sessions: read [`docs/HOW-IT-WORKS.md`](docs/HOW-IT-WORKS.md) first** (architecture, how each platform is fetched, gotchas).
 > The sections below describe the older local-server version (still works).
+> **Developers / future sessions:** `docs/HOW-IT-WORKS.md` (architecture) and `docs/DATA-SOURCES.md` (every platform route, field names, tests, reference extensions, troubleshooting).
 
 
 A local-only dashboard for your Zomato, Swiggy, Instamart, Blinkit and Zepto order history.

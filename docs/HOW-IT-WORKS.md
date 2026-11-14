@@ -1,6 +1,6 @@
 # How Money Tracker works (handover notes)
 
-Read this first in a new session. It explains what the app is, how orders are fetched, where data lives, and the gotchas
+Read this first in a new session, then `docs/DATA-SOURCES.md` (exact routes, field names, reference extensions, the 14 Nov 2026 Zomato incident and a decision tree for when a platform stops returning data). It explains what the app is, how orders are fetched, where data lives, and the gotchas
 learned the hard way. `README.md` is the user-facing quick start; `AGENTS.md` warns that this Next.js (16.x) differs from
 older versions, so check `node_modules/next/dist/docs/` before touching Next APIs.
 
@@ -48,8 +48,7 @@ having its own copy of the fetch runners (`extension-app/background.js`, tested 
 
 The extension calls each platform's **own order-history web route from inside the user's already-logged-in tab**. The
 request is same-origin (or CORS-allowed), so the session cookies go with it; no passwords, no scraping of rendered HTML,
-no third-party server. The method was learned by reading the installed "MunchMetrics" extension (MIT) and later the
-"Spending Calculator For Zepto & Blinkit" extension.
+no third-party server. The method was learned by reading the installed "MunchMetrics" extension (MIT) and later "Spending Calculator For Zepto & Blinkit" and "Total Damage". All three are installed again in the owner's Chrome; their ids, what each does and how to re-inspect them are in `docs/DATA-SOURCES.md` section 5.
 
 Flow, triggered only by the **Fetch orders** button (`src/components/FetchOrders.tsx`):
 
@@ -74,7 +73,7 @@ Long work must not block one call for minutes; Blinkit is split into batched wor
 
 | Platform | Route | Notes |
 |---|---|---|
-| Zomato | `GET /webroutes/user/orders?page=N` | ~106 pages, 6 in parallel. `entities.ORDER` keyed by real id with `orderDate` (full date with year), `totalCost`, `dishString`, `resInfo`. **Keep only `deliveryDetails.deliveryLabel === "Delivered"`.** Skipped: "Payment Incomplete" (never charged, ~140), "Refund Completed" (~23; 8 of those were delivered then refunded), "Rejected". Counting payment-failed orders inflates spend (another extension does; ours is correct). **Item prices:** `GET /webroutes/order/details?hashId=<hashId>` (hashId comes from the list) returns `details.order.items.dish[]` (`itemName`, `quantity`, `totalCost`) plus groups `item_total`, `voucher_discount` (negative), `*_discount` such as `salt_discount` (positive), `tax`, `charge[]`, `platform_charge`, `total_user`. Verified on 54 orders back to 2018. **Status (14 Nov 2026): the website has no login any more** (`/login`, `m.zomato.com` redirect to an "Order on app" page; `/webroutes/*` return 401 once the old session ends), so neither route can be refreshed. The orders already stored are kept; new ones need another source (e.g. emailed receipts). The extension reports `web-login-closed`. |
+| Zomato | `GET /webroutes/user/orders?page=N` | ~106 pages, 6 in parallel. `entities.ORDER` keyed by real id with `orderDate` (full date with year), `totalCost`, `dishString`, `resInfo`. **Keep only `deliveryDetails.deliveryLabel === "Delivered"`.** Skipped: "Payment Incomplete" (never charged, ~140), "Refund Completed" (~23; 8 of those were delivered then refunded), "Rejected". Counting payment-failed orders inflates spend (another extension does; ours is correct). **Item prices:** `GET /webroutes/order/details?hashId=<hashId>` (hashId comes from the list) returns `details.order.items.dish[]` (`itemName`, `quantity`, `totalCost`) plus groups `item_total`, `voucher_discount` (negative), `*_discount` such as `salt_discount` (positive), `tax`, `charge[]`, `platform_charge`, `total_user`. Verified on 54 orders back to 2018. **Login:** a logged-out session answers 401; the user logs in at `https://www.zomato.com/login` (phone + OTP, email or Google). On 14 Nov 2026 a 401 plus an "Order on app" landing page in one browser was wrongly read as "web login removed"; the login modal exists and the session worked again later that day. See `docs/DATA-SOURCES.md` section 4 before concluding anything similar. |
 | Swiggy | `GET /dapi/order/all?order_id=<last id>` | Cursor = last order id until an empty page. Web history only reaches ~1 year (~33 orders). **Only platform with real item prices.** Fees = total − itemTotal + discount. |
 | Instamart | `GET https://instamart.in/api/instamart/orders?order_type=DASH&count=10&from_time=<ms>` | Only a handful of recent orders exist. |
 | Blinkit | `POST https://blinkit.com/v1/layout/order_history` (cursor `pagination.next_url`) then `POST /v1/layout/order_details/<id>?cart_id=<cart>` per order for items | Headers: `access_token`, `app_client: consumer_web`, `app_version: 1010101010`, `auth_key`, `device_id`. Dates have **no year** (inferred walking newest→oldest) and older orders have **no time** (noon IST assumed). Details fetched in batches of 4, 400 ms gap, 3 passes. Takes a few minutes. The same `order_details` response carries exact prices: `z_v3_image_text_snippet_type_30` has `title.text`, `subtitle1.text` ("10 pcs x 2", quantity = trailing `x N`) and `subtitle3.text` (line price; a struck-through MRP may come first, so take the last ₹ number); `cart_bill_item` rows (`left_header.text` / `right_header.text`, "-₹14" = discount) give MRP, Item total, fees, tip, Bill total. Tested on 24 orders across all history; item prices equal "Item total" every time (commit ef37798). |
@@ -126,8 +125,8 @@ Start from scratch: stop the app, delete `.data/orders.db*`. Server stdout goes 
 
 ## 8. Known limits and open items
 
-- **Zomato web login is gone (seen 14 Nov 2026).** No way to refresh Zomato orders or fetch per-dish prices from the browser. Options discussed with the user, not yet chosen: read Zomato's emailed receipts from Gmail via a logged-in Gmail tab, a pasted sample receipt, or leave Zomato estimated. Do not read the user's mail without explicit consent.
-- The extensions this method was learned from (MunchMetrics, "Spending Calculator For Zepto & Blinkit", "Total Damage") are not in this Mac's Chrome profile, so their code cannot be re-read here.
+- **Zomato session lapses.** A 401 from `/webroutes/user/orders` means "log in again at zomato.com/login", not "Zomato is closed" (incident write-up: `docs/DATA-SOURCES.md` section 4). Saved orders are never deleted by a failed fetch.
+- The three reference extensions are in `~/Library/Application Support/Google/Chrome/Default/Extensions/` (ids in `docs/DATA-SOURCES.md`). One of them uploads user data to a remote server: never copy that behaviour.
 - Instamart web shows only ~6 orders; Swiggy web ~1 year; the Zomato/Zepto/Instamart *list* responses carry no item prices (Zomato/Zepto detail routes do; see section 4).
 - Older Blinkit orders have an assumed noon time; Blinkit years are inferred.
 - Unverified: the idle auto-shutdown has not been observed end to end (the user's open tab kept pinging).
