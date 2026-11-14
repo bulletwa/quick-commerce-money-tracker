@@ -61,5 +61,10 @@ describe("goals", () => {
     expect(smartTips(milk, NOW).some((t) => t.text.includes("Milk"))).toBe(true);
     expect(smartTips(habit.filter((o) => o.type === "grocery"), NOW).some((t) => t.text.includes("Milk"))).toBe(false);
   });
+  it("small orders are judged by what was paid, not by a filtered share", () => {
+    const partial = { ...order(at(10, 3), "grocery", 50), fullTotal: 900, partial: true }; // a ₹900 basket of which ₹50 is the selected category
+    expect(metricValue([partial], { scope: "grocery", metric: "small_orders", threshold: 200 })).toBe(0);
+    expect(metricValue([partial], { scope: "grocery", metric: "spend" })).toBe(50);
+  });
   it("tips do not throw on empty data", () => { expect(smartTips([], NOW)).toEqual([]); });
 });

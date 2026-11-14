@@ -52,7 +52,11 @@ function GoalCard({ p, onDelete }: { p: Progress; onDelete: () => void }) {
   );
 }
 
-export function Goals({ orders }: { orders: Order[] }) {
+/**
+ * `orders` are what the cards measure (the dashboard's filtered orders, minus the date range because goals are monthly);
+ * `allOrders` are everything: limits, suggestions, tips and the toolbar badge never depend on the filters.
+ */
+export function Goals({ orders, allOrders, filterLabel, onClear }: { orders: Order[]; allOrders: Order[]; filterLabel?: string; onClear?: () => void }) {
   const [goals, setGoals] = useState<Goal[] | null>(null);
   const [err, setErr] = useState("");
   const [open, setOpen] = useState(() => { try { return localStorage.getItem("mt-goals-open") !== "0"; } catch { return true; } });
@@ -66,12 +70,13 @@ export function Goals({ orders }: { orders: Order[] }) {
 
   const now = useMemo(() => new Date(), []);
   const progress = useMemo(() => (goals ?? []).map((g) => goalProgress(g, orders, now)), [goals, orders, now]);
-  const tips = useMemo(() => smartTips(orders, now), [orders, now]);
-  const suggestions = useMemo(() => suggestGoals(orders, now), [orders, now]);
-  useEffect(() => { // tell the extension (if installed) how many goals are over/near their limit, for its icon badge
-    if (goals) api.reportBadge(progress.filter((p) => p.state === "over").length, progress.filter((p) => p.state === "warn").length);
-  }, [goals, progress]);
-  const formAvg = useMemo(() => recentAverage(orders, { scope: form.scope, metric: form.metric, threshold: 200 }, 2, now), [orders, form.scope, form.metric, now]);
+  const tips = useMemo(() => smartTips(allOrders, now), [allOrders, now]);
+  const suggestions = useMemo(() => suggestGoals(allOrders, now), [allOrders, now]);
+  const progressAll = useMemo(() => (goals ?? []).map((g) => goalProgress(g, allOrders, now)), [goals, allOrders, now]);
+  useEffect(() => { // tell the extension (if installed) how many goals are over/near their limit, for its icon badge: always from all orders
+    if (goals) api.reportBadge(progressAll.filter((p) => p.state === "over").length, progressAll.filter((p) => p.state === "warn").length);
+  }, [goals, progressAll]);
+  const formAvg = useMemo(() => recentAverage(allOrders, { scope: form.scope, metric: form.metric, threshold: 200 }, 2, now), [allOrders, form.scope, form.metric, now]);
   const post = (body: unknown) => run(api.saveGoals(body));
   const month = now.toLocaleString("en-IN", { month: "long", year: "numeric" });
   const overN = progress.filter((p) => p.state === "over").length, warnN = progress.filter((p) => p.state === "warn").length, okN = progress.length - overN - warnN;
@@ -98,6 +103,14 @@ export function Goals({ orders }: { orders: Order[] }) {
         </span>
       </button>
       {open && <>
+
+      {filterLabel && (
+        <div className="card flex flex-wrap items-center gap-2 text-sm">
+          <span>Measuring only <b>{filterLabel}</b>.</span>
+          <span className="text-muted">The limits stay the same, so these bars show how much of each budget that selection takes. The date range is ignored because goals are monthly.</span>
+          {onClear && <button className="btn ml-auto" onClick={onClear}>Clear filters</button>}
+        </div>
+      )}
 
       {tips.length > 0 && (
         <div className="card">

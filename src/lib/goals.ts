@@ -36,7 +36,7 @@ export function metricValue(orders: Order[], g: Pick<Goal, "scope" | "metric" | 
     const h = new Date(o.placedAt).getHours();
     if (g.metric === "spend") v += o.total;
     else if (g.metric === "orders") v += 1;
-    else if (g.metric === "small_orders") v += o.total < (g.threshold ?? 200) ? 1 : 0;
+    else if (g.metric === "small_orders") v += (o.fullTotal ?? o.total) < (g.threshold ?? 200) ? 1 : 0; // the size of the order as paid, even when a category filter shows only part of it
     else if (g.metric === "late_night") v += h >= 22 || h < 4 ? 1 : 0;
     else if (g.metric === "tobacco_orders") v += o.items.some((i) => i.category === "Tobacco") ? 1 : 0;
   }

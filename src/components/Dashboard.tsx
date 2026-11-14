@@ -101,6 +101,8 @@ export default function Dashboard() {
   }, [all]);
   const withAmt = useMemo(() => withAmounts(all ?? [], prices), [all, prices]); // every item gets an amount: exact, your price, or estimated
   const orders = useMemo(() => applyFilters(withAmt, f), [withAmt, f]);
+  // goals are monthly, so they follow every filter except the date range
+  const goalOrders = useMemo(() => applyFilters(withAmt, { ...f, from: undefined, to: undefined }), [withAmt, f]);
   const conf = useMemo(() => confidence(orders), [orders]);
   const check = useMemo(() => reconcile(all ?? [], prices), [all, prices]);
   const approx = f.categories.length > 0 && conf.high - conf.low >= 1;
@@ -268,7 +270,7 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <Goals orders={all} />
+      <Goals orders={goalOrders} allOrders={all} filterLabel={parts.length ? parts.join(" · ") : undefined} onClear={() => { setF(emptyFilters); setPage(0); }} />
 
       <Card title={`Orders (${orders.length.toLocaleString("en-IN")})`} total={tot(inr(paidTotal(orders)), `total paid for these orders · ${cardPeriod}`)}>
         <div className="overflow-x-auto">
