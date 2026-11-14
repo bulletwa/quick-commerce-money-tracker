@@ -42,7 +42,13 @@ async function runSwiggy() {
   const sleepP = (ms) => new Promise((r) => setTimeout(r, ms));
   const all = []; let cursor = "", pages = 0;
   for (;;) {
-    const r = await fetch(`/dapi/order/all?order_id=${encodeURIComponent(cursor)}`, { credentials: "same-origin" });
+    let r;
+    for (let a = 1; a <= 4; a++) { // a 503/429 is usually momentary (the site is busy): wait and ask again before giving up
+      r = await fetch(`/dapi/order/all?order_id=${encodeURIComponent(cursor)}`, { credentials: "same-origin" }).catch(() => null);
+      if (r && (r.ok || (r.status < 500 && r.status !== 429))) break;
+      await sleepP(1500 * a);
+    }
+    if (!r) return { error: "http-network" };
     if (!r.ok) return { error: r.status === 401 || r.status === 403 ? "not-logged-in" : `http-${r.status}` };
     let j; try { j = await r.json(); } catch { return { error: "not-logged-in" }; }
     if (!j?.data) return { error: /login|auth/i.test(j?.statusMessage || "") ? "not-logged-in" : "unrecognised" };
@@ -101,11 +107,18 @@ async function runZepto() {
   const sleepP = (ms) => new Promise((r) => setTimeout(r, ms));
   const ck = (n) => { const m = document.cookie.match(new RegExp("(?:^|; )" + n + "=([^;]*)")); return m ? decodeURIComponent(m[1]) : null; };
   const page = async (n) => {
-    const id = crypto.randomUUID();
-    const r = await fetch(`https://bff-gateway.zepto.com/api/v2/order/?page_number=${n}`, { credentials: "include", headers: {
-      Accept: "application/json, text/plain, */*", Appversion: "17.2.2", App_version: "17.2.2", App_sub_platform: "WEB", Auth_from_cookie: "true",
-      Auth_revamp_flow: "v2", "request-signature": "PLACEHOLDER_SIGNATURE", request_id: id, requestid: id, "x-xsrf-token": ck("XSRF-TOKEN"),
-      "x-timezone": String(new Date().getTimezoneOffset()) } });
+    let r;
+    for (let a = 1; a <= 4; a++) {
+      const id = crypto.randomUUID();
+      r = await fetch(`https://bff-gateway.zepto.com/api/v2/order/?page_number=${n}`, { credentials: "include", headers: {
+        Accept: "application/json, text/plain, */*", Appversion: "17.2.2", App_version: "17.2.2", App_sub_platform: "WEB", Auth_from_cookie: "true",
+        Auth_revamp_flow: "v2", "request-signature": "PLACEHOLDER_SIGNATURE", request_id: id, requestid: id, "x-xsrf-token": ck("XSRF-TOKEN"),
+        "x-timezone": String(new Date().getTimezoneOffset()) } }).catch(() => null);
+      if (r && r.ok) break;
+      if (r && (r.status === 403 || (r.status === 401 && a >= 3) || (r.status < 500 && r.status !== 429 && r.status !== 401))) break; // a real refusal
+      await sleepP(1200 * a);
+    }
+    if (!r) return { error: "http-network" };
     if (!r.ok) return { error: r.status === 401 || r.status === 403 ? "not-logged-in" : `http-${r.status}` };
     let j; try { j = await r.json(); } catch { return { error: "unrecognised" }; }
     if (!Array.isArray(j.orders)) return { error: "unrecognised" };
@@ -327,7 +340,7 @@ async function fetchPlatform(platform, send) {
     const list = r.orders;
     const priced = await pricedIds(platform);
     // never replace an order that already has exact prices with a list-only copy
-    const mapNow = (raws) => { const m = MAPPERS[platform](raws); return { orders: m.orders.filter((o) => !(priced.has(o.id) && !o.itemsPriced)), skipped: m.skipped }; };
+    const mapNow = (raws) => { const m = MAPPERS[platform](raws); const orders = m.orders.filter((o) => !(priced.has(o.id) && !o.itemsPriced)); return { orders, skipped: m.skipped, kept: m.orders.length - orders.length }; };
     if (list.length && !mapNow(list).orders.length && mapNow(list).skipped === list.length && !list.some((o) => o && typeof o === "object")) return send({ type: "error", platform, error: "unrecognised" });
     // 1. the list, so new orders show up straight away even if the detail calls fail
     const first = mapNow(list);
@@ -358,7 +371,7 @@ async function fetchPlatform(platform, send) {
     }
     failed = todo.filter((o) => !o.__ok).length;
     if (loginError) send({ type: "error", platform, error: loginError });
-    else send({ type: "imported", platform, added: res.added, updated: res.updated, skipped: first.skipped, priced: todo.length - failed, failed });
+    else send({ type: "imported", platform, added: res.added, updated: res.updated + first.kept, skipped: first.skipped, priced: todo.length - failed, failed }); // "already had" includes orders kept because they already have exact prices
   } catch (e) {
     send({ type: "error", platform, error: String(e?.message || e) });
   } finally {

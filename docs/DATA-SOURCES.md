@@ -158,6 +158,15 @@ promo-discount cases and the Instamart gap were found. Read-only; never copy the
 4. Detail call fails but the list works: orders stay estimated; the dashboard says so; nothing is lost.
 5. All routes closed: other sources need the user's explicit consent (e.g. emailed receipts). Do not read mail without it.
 
+## 7b. Transient errors seen in real runs (and what the runners do)
+
+- **Swiggy `http-503`** during a full fetch (14 Nov 2026), while the same call answered 200 a minute later. The runner now retries 5xx/429 up to 4 times with growing waits.
+- **Zepto `401` with body `{message, code}`** on the first 3 of 5 rapid list calls, then 200s; with 600 ms spacing every call returned 200. So a lone 401 is a burst hiccup, not a logout.
+  The runner retries a 401 twice before calling it `not-logged-in`; 429/5xx are retried too.
+- **"0 new, 0 already had, N skipped"** is not an error: orders that already have exact prices are deliberately not rewritten, and since 14 Nov they are counted under "already had".
+  The skipped ones are non-delivered orders (cancelled/failed). Check by comparing with the stored order count, not with the status line.
+- A fetch can run for many minutes (Zomato lists 106 pages, then reads ~886 detail pages the first time). Leave the dashboard tab open; re-running is safe and cheap afterwards.
+
 ## 8. Tooling gotchas seen while doing this
 
 - The Chrome JS tool blocks output that looks like cookies or query strings: return counts, booleans and key names.

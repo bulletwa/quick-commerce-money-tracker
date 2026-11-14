@@ -103,3 +103,19 @@ describe("runInstamart", () => {
     expect(JSON.stringify(r)).not.toContain("customer");
   });
 });
+
+describe("transient failures", () => {
+  it("swiggy retries a 503 and then reads the orders", async () => {
+    let calls = 0;
+    const r = (await run("runSwiggy", () => (++calls < 3 ? json(503, {}) : json(200, { data: { orders: [] } })), undefined)) as unknown as { orders: unknown[] };
+    expect(r.orders).toEqual([]);
+    expect(calls).toBe(3);
+  }, 20_000);
+  it("zepto treats a lone 401 as a hiccup but a persistent one as logged out", async () => {
+    let calls = 0;
+    const ok = (await run("runZepto", () => (++calls < 2 ? json(401, { message: "x", code: "y" }) : json(200, { orders: [], endOfList: true })), undefined)) as unknown as { orders: unknown[] };
+    expect(ok.orders).toEqual([]);
+    const out = (await run("runZepto", () => json(401, { message: "x" }), undefined)) as unknown as { error: string };
+    expect(out.error).toBe("not-logged-in");
+  }, 30_000);
+});
