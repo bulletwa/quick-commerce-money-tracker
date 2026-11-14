@@ -133,8 +133,8 @@ export function Spending({ go }: { go: (t: TabId) => void }) {
                   <XAxis dataKey="period" tick={{ fontSize: 11 }} stroke="var(--muted)" minTickGap={24} />
                   <YAxis tick={{ fontSize: 11 }} stroke="var(--muted)" tickFormatter={axisInr} width={48} />
                   <Tooltip {...tip} /><Legend />
-                  <Area type="monotone" dataKey="food" stackId="1" name="Food" stroke="var(--c-food)" fill="var(--c-food)" fillOpacity={0.3} />
-                  <Area type="monotone" dataKey="grocery" stackId="1" name="Grocery" stroke="var(--c-grocery)" fill="var(--c-grocery)" fillOpacity={0.3} />
+                  <Area isAnimationActive={false} type="monotone" dataKey="food" stackId="1" name="Food" stroke="var(--c-food)" fill="var(--c-food)" fillOpacity={0.3} />
+                  <Area isAnimationActive={false} type="monotone" dataKey="grocery" stackId="1" name="Grocery" stroke="var(--c-grocery)" fill="var(--c-grocery)" fillOpacity={0.3} />
                 </AreaChart>
               </ResponsiveContainer>
             </Card>
