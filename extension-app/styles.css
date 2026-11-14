@@ -1,6 +1,5 @@
+@import "./fonts.css";
 @import "../src/app/globals.css";
 @source "../src";
 @source "./dashboard.html";
-/* no web fonts: the extension makes no network requests of its own */
-body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-html { height: 100%; }
+/* fonts and art are bundled with the extension: it makes no network requests of its own */

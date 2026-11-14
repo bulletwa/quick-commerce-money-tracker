@@ -4,12 +4,13 @@ import type { Order } from "@/lib/types";
 import { HABIT_METRICS, METRICS, METRIC_LABEL, SCOPES, byMonth, describeGoal, goalProgress, limitFromAverage, metricValue, monthKey, recentAverage, smartTips, suggestGoals, type Goal, type Metric, type Progress, type Scope } from "@/lib/goals";
 import { inr } from "@/lib/format";
 import { api } from "@/lib/api";
+import { Icon } from "./art/icons";
 
-const COLOR = { ok: "#10b981", warn: "#f59e0b", over: "#ef4444" } as const;
+const COLOR = { ok: "var(--good)", warn: "var(--warn)", over: "var(--bad)" } as const;
 const fmt = (m: Metric, n: number) => (m === "spend" ? inr(n) : String(Math.round(n)));
 /** with the unit spelled out, so "6 of 8" reads "6 of 8 orders" */
 const fmtU = (m: Metric, n: number) => (m === "spend" ? inr(n) : `${Math.round(n)} ${Math.round(n) === 1 ? "order" : "orders"}`);
-const TIP_ICON = { warn: "⚠️", info: "💡", good: "✅" } as const;
+const TIP_ICON = { warn: { name: "warning", color: "var(--warn)" }, info: { name: "lightbulb", color: "var(--accent)" }, good: { name: "check-circle", color: "var(--good)" } } as const;
 
 function GoalCard({ p, onDelete }: { p: Progress; onDelete: () => void }) {
   const { goal: g } = p;
@@ -24,18 +25,18 @@ function GoalCard({ p, onDelete }: { p: Progress; onDelete: () => void }) {
         <button className="text-xs text-muted hover:text-foreground" onClick={onDelete} aria-label={`Delete goal ${g.label}`}>Remove</button>
       </div>
       <div className="flex items-baseline justify-between text-sm">
-        <span className="text-lg font-semibold">{fmt(g.metric, p.value)} <span className="text-sm font-normal text-muted">of {fmtU(g.metric, g.limit)}</span></span>
+        <span className="num text-lg font-semibold">{fmt(g.metric, p.value)} <span className="text-sm font-normal text-muted">of {fmtU(g.metric, g.limit)}</span></span>
         <span style={{ color: COLOR[p.state] }}>{p.state === "over" ? `${fmtU(g.metric, -p.remaining)} over` : `${fmtU(g.metric, p.remaining)} left`}</span>
       </div>
-      <div className="h-2 rounded bg-border"><div className="h-2 rounded" style={{ width: `${Math.min(100, p.pct * 100)}%`, background: COLOR[p.state] }} /></div>
+      <div className="h-2 overflow-hidden rounded bg-border"><div className="fillbar h-2 w-full rounded" style={{ transform: `scaleX(${Math.min(1, p.pct)})`, background: COLOR[p.state] }} /></div>
       <div className="flex flex-wrap justify-between gap-x-3 text-xs text-muted">
         <span>On pace for {fmtU(g.metric, p.projected)} this month</span>
         {p.vsBaselinePct != null && (
           <span style={{ color: p.vsBaselinePct <= 0 ? COLOR.ok : COLOR.over }} title={`Your average over the previous months: ${fmtU(g.metric, p.baseline)} a month`}>
-            {p.vsBaselinePct <= 0 ? "▼" : "▲"} {Math.abs(Math.round(p.vsBaselinePct))}% vs your usual
+            <Icon name={p.vsBaselinePct <= 0 ? "arrow-down" : "arrow-up"} size={12} className="mr-0.5 inline" />{Math.abs(Math.round(p.vsBaselinePct))}% vs your usual
           </span>
         )}
-        {p.streak > 0 && <span>🔥 {p.streak} month{p.streak > 1 ? "s" : ""} on target</span>}
+        {p.streak > 0 && <span className="inline-flex items-center gap-1"><Icon name="flame" size={13} />{p.streak} month{p.streak > 1 ? "s" : ""} on target</span>}
       </div>
       {p.history.length > 0 && (
         <div>
@@ -97,7 +98,7 @@ export function Goals({ orders, allOrders, filterLabel, onClear }: { orders: Ord
   return (
     <section className="space-y-3">
       <button className="flex w-full flex-wrap items-baseline gap-x-3 gap-y-1 text-left" onClick={toggleOpen} aria-expanded={open}>
-        <h2 className="text-lg font-semibold">{open ? "▾" : "▸"} Budgets &amp; goals <span className="text-sm font-normal text-muted">· {month}</span></h2>
+        <h2 className="flex items-center gap-1.5"><Icon name={open ? "caret-down" : "caret-right"} size={16} /> Budgets &amp; goals <span className="text-sm font-normal text-muted">· {month}</span></h2>
         <span className="text-sm text-muted">
           {monthLine} · {progress.length ? [overN && `${overN} over`, warnN && `${warnN} near limit`, okN && `${okN} on track`].filter(Boolean).join(", ") : "no goals yet"}
         </span>
@@ -115,7 +116,7 @@ export function Goals({ orders, allOrders, filterLabel, onClear }: { orders: Ord
       {tips.length > 0 && (
         <div className="card">
           <h3 className="mb-2 text-sm font-medium text-muted">What your recent orders say</h3>
-          <ul className="space-y-1 text-sm">{tips.map((t) => <li key={t.text}>{TIP_ICON[t.tone]} {t.text}</li>)}</ul>
+          <ul className="space-y-1.5 text-sm">{tips.map((t) => <li key={t.text} className="flex items-start gap-2"><span className="mt-0.5 shrink-0" style={{ color: TIP_ICON[t.tone].color }}><Icon name={TIP_ICON[t.tone].name} size={16} /></span><span>{t.text}</span></li>)}</ul>
         </div>
       )}
 

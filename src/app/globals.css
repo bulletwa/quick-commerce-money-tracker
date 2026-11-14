@@ -1,37 +1,100 @@
 @import "tailwindcss";
 
-:root {
-  --background: #f6f7f9;
-  --foreground: #14161a;
-  --card: #ffffff;
-  --muted: #6b7280;
-  --border: #e5e7eb;
-  --accent: #4f46e5;
+/*
+ * Design tokens. Three looks share one structure and differ in these values:
+ *   khata  "Khata & Bill": cool thermal-paper surfaces, ink text, monospaced rupee figures, dotted leaders, a bill-style set-aside card
+ *   pop    "Soft Pop": airy, rounded, brighter accents, friendlier shapes
+ *   ink    "Calm Dark Ink": dark only, quiet, thin rules, one mint accent
+ * The look is chosen with <html data-look="...">; light/dark follows the system (ink is always dark).
+ * Every text/background pair is checked for WCAG AA by scripts/check-contrast.mjs.
+ */
+:root, :root[data-look="khata"] {
+  --background: #f1f3ee; --card: #fafbf8; --foreground: #1b211e; --muted: #56625b; --border: #d6dcd3; --border-strong: #78847b;
+  --accent: #1a7348; --accent-ink: #ffffff; --warn: #8f6200; --bad: #b32d24; --good: #1a7348;
+  --c-food: #c0362c; --c-grocery: #1a7348; --c-ramp: #1a7348;
+  --radius: 6px; --radius-sm: 4px; --radius-chip: 4px;
+  --font-display: "Bricolage Grotesque", system-ui, sans-serif; --font-body: "Figtree", system-ui, sans-serif; --font-num: "IBM Plex Mono", ui-monospace, monospace;
+  --art-display: block; --leader-display: block;
+  color-scheme: light;
+}
+:root[data-look="pop"] {
+  --background: #f5f6fb; --card: #ffffff; --foreground: #181a2e; --muted: #596079; --border: #e0e4f1; --border-strong: #868daf;
+  --accent: #c93a22; --accent-ink: #ffffff; --warn: #8f5b00; --bad: #b3261e; --good: #17734a;
+  --c-food: #e0432c; --c-grocery: #1f9d6a; --c-ramp: #5a3fd8;
+  --radius: 18px; --radius-sm: 12px; --radius-chip: 999px;
+  --font-display: "Bricolage Grotesque", system-ui, sans-serif; --font-body: "Figtree", system-ui, sans-serif; --font-num: "Figtree", system-ui, sans-serif;
+  --art-display: block; --leader-display: none;
+  color-scheme: light;
+}
+:root[data-look="ink"] {
+  --background: #0b0d0c; --card: #131715; --foreground: #dde3de; --muted: #94a09a; --border: #232a26; --border-strong: #5b6962;
+  --accent: #6ee7b7; --accent-ink: #052e1b; --warn: #f0b429; --bad: #f2776d; --good: #6ee7b7;
+  --c-food: #f2776d; --c-grocery: #6ee7b7; --c-ramp: #6ee7b7;
+  --radius: 10px; --radius-sm: 6px; --radius-chip: 999px;
+  --font-display: "Bricolage Grotesque", system-ui, sans-serif; --font-body: "Figtree", system-ui, sans-serif; --font-num: "Figtree", system-ui, sans-serif;
+  --art-display: none; --leader-display: none;
+  color-scheme: dark;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0d0f12;
-    --foreground: #e8eaed;
-    --card: #161a1f;
-    --muted: #9aa3af;
-    --border: #262c34;
-    --accent: #818cf8;
+  :root, :root[data-look="khata"] {
+    --background: #111513; --card: #192019; --foreground: #e6ebe5; --muted: #9aa69f; --border: #2a332e; --border-strong: #6b7a71;
+    --accent: #5cc48c; --accent-ink: #062c19; --warn: #f0b429; --bad: #f2776d; --good: #5cc48c;
+    --c-food: #f2776d; --c-grocery: #5cc48c; --c-ramp: #5cc48c;
+    color-scheme: dark;
+  }
+  :root[data-look="pop"] {
+    --background: #14132a; --card: #1e1d38; --foreground: #eceafc; --muted: #a7a5c8; --border: #302f52; --border-strong: #7a78ad;
+    --accent: #ff7a62; --accent-ink: #2b0a04; --warn: #f5b942; --bad: #ff8a80; --good: #5fd9a3;
+    --c-food: #ff7a62; --c-grocery: #5fd9a3; --c-ramp: #9d8bff;
+    color-scheme: dark;
   }
 }
+
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-muted: var(--muted);
-  --color-border: var(--border);
-  --color-accent: var(--accent);
-  --font-sans: var(--font-geist-sans);
+  --color-background: var(--background); --color-foreground: var(--foreground); --color-card: var(--card); --color-muted: var(--muted);
+  --color-border: var(--border); --color-accent: var(--accent); --color-warn: var(--warn); --color-bad: var(--bad); --color-good: var(--good);
+  --font-sans: var(--font-body);
 }
-body { background: var(--background); color: var(--foreground); font-family: var(--font-geist-sans), system-ui, sans-serif; }
-.card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
-.input { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 14px; }
-.btn { border: 1px solid var(--border); background: var(--card); border-radius: 8px; padding: 6px 12px; font-size: 14px; cursor: pointer; }
-.btn:hover { border-color: var(--accent); }
-.btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
-.chip { border: 1px solid var(--border); border-radius: 999px; padding: 3px 11px; font-size: 13px; cursor: pointer; background: var(--card); }
-.chip[data-on="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+html { height: 100%; }
+body { background: var(--background); color: var(--foreground); font-family: var(--font-body); font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; letter-spacing: -0.01em; }
+h2 { font-size: 1.25rem; font-weight: 650; } h3 { font-size: 0.875rem; font-weight: 600; }
+/* figures: tabular so columns line up and values don't jitter */
+.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+.art { display: var(--art-display); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-sm); }
+
+.card { min-width: 0; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+.card-primary { border-color: var(--border-strong); }
+.input { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 10px; font-size: 14px; color: var(--foreground); }
+.input:hover { border-color: var(--border-strong); }
+.btn { border: 1px solid var(--border-strong); background: var(--card); color: var(--foreground); border-radius: var(--radius-sm); padding: 6px 12px; font-size: 14px; font-weight: 500; cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease, transform 150ms ease; touch-action: manipulation; }
+.btn:hover:not(:disabled) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--card)); }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:disabled { opacity: 0.5; cursor: default; }
+.btn-primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 88%, var(--foreground)); border-color: transparent; }
+.chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border-strong); border-radius: var(--radius-chip); padding: 3px 11px; font-size: 13px; cursor: pointer; background: var(--card); color: var(--foreground);
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease; touch-action: manipulation; }
+.chip:hover { border-color: var(--accent); }
+.chip[data-on="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+/* dotted leader between a label and its figure ("Blinkit ........ ₹3,12,400"); other looks fall back to plain space-between */
+.leader { display: flex; align-items: baseline; gap: 8px; justify-content: space-between; }
+.leader > i { display: var(--leader-display); flex: 1; min-width: 12px; border-bottom: 2px dotted var(--border-strong); transform: translateY(-3px); }
+
+/* the one memorable element: the monthly set-aside as a bill with a torn edge (khata only) */
+:root[data-look="khata"] .bill { position: relative; border-bottom: 0; border-radius: var(--radius) var(--radius) 0 0; margin-bottom: 10px; }
+:root[data-look="khata"] .bill::after { content: ""; position: absolute; left: -1px; right: -1px; bottom: -9px; height: 9px;
+  background: linear-gradient(135deg, var(--card) 25%, transparent 25%) -5px 0, linear-gradient(225deg, var(--card) 25%, transparent 25%) -5px 0;
+  background-size: 10px 10px; filter: drop-shadow(0 1px 0 var(--border)); }
+
+/* motion: one load-in, small responses; everything off for people who prefer reduced motion */
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.rise { animation: rise 240ms ease-out both; }
+.fillbar { transform-origin: left center; transition: transform 400ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .rise { animation: none; } .fillbar, .btn, .chip { transition: none; } .btn:active:not(:disabled) { transform: none; }
+}

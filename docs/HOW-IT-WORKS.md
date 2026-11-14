@@ -106,6 +106,9 @@ The extension's worker (`extension-app/background.js`, `DETAILS` map + `fetchPla
 upserts per batch, and never replaces a priced order with a list-only copy. Tests: `extension-app/runners.test.ts`, `worker.test.ts`,
 `src/lib/connectors/web.test.ts`.
 
+## 5b. Look and feel
+Three switchable looks (Khata & Bill, Soft Pop, Calm Dark Ink) share one structure; tokens, fonts, icons, motion rules and licences are in `docs/DESIGN.md`. Contrast is enforced by `node scripts/check-contrast.mjs`.
+
 ## 6. Dashboard code map
 
 - `src/app/page.tsx`, `src/components/Dashboard.tsx`: main view; `TopList` rows are clickable and show "N× · ≈ ₹X".

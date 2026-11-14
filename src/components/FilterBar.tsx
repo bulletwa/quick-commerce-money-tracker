@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { PLATFORMS, PLATFORM_LABEL } from "@/lib/types";
+import { Icon, categoryIcon } from "./art/icons";
 import type { Filters } from "@/lib/analytics";
 
 export function FilterBar({ f, set, categories }: { f: Filters; set: (f: Filters) => void; categories: string[] }) {
@@ -16,14 +17,14 @@ export function FilterBar({ f, set, categories }: { f: Filters; set: (f: Filters
   return (
     <div className="card space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <input type="date" className="input" value={f.from ?? ""} onChange={(e) => set({ ...f, from: e.target.value || undefined })} />
+        <input type="date" className="input" aria-label="From date" value={f.from ?? ""} onChange={(e) => set({ ...f, from: e.target.value || undefined })} />
         <span className="text-muted text-sm">to</span>
-        <input type="date" className="input" value={f.to ?? ""} onChange={(e) => set({ ...f, to: e.target.value || undefined })} />
+        <input type="date" className="input" aria-label="To date" value={f.to ?? ""} onChange={(e) => set({ ...f, to: e.target.value || undefined })} />
         {[["30d", 30], ["90d", 90], ["1y", 365]].map(([l, d]) => (
           <button key={l} className="btn" onClick={() => preset(d as number)}>{l}</button>
         ))}
         <button className="btn" onClick={() => set({ ...f, from: undefined, to: undefined })}>All time</button>
-        <input className="input ml-auto w-56" placeholder="Search dish, item or store…" value={f.q ?? ""} onChange={(e) => set({ ...f, q: e.target.value })} />
+        <input className="input ml-auto w-56" type="search" aria-label="Search dish, item or store" autoComplete="off" spellCheck={false} placeholder="Search dish, item or store…" value={f.q ?? ""} onChange={(e) => set({ ...f, q: e.target.value })} />
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs text-muted w-16">Platform</span>
@@ -35,13 +36,13 @@ export function FilterBar({ f, set, categories }: { f: Filters; set: (f: Filters
           <button key={t} className="chip" data-on={f.type === t} onClick={() => set({ ...f, type: f.type === t ? undefined : t })}>{t === "food" ? "Food" : "Grocery"}</button>
         ))}
         <span className="text-xs text-muted ml-4">Order ₹</span>
-        <input type="number" className="input w-20" placeholder="min" value={f.minTotal ?? ""} onChange={(e) => set({ ...f, minTotal: e.target.value ? +e.target.value : undefined })} />
-        <input type="number" className="input w-20" placeholder="max" value={f.maxTotal ?? ""} onChange={(e) => set({ ...f, maxTotal: e.target.value ? +e.target.value : undefined })} />
+        <input type="number" className="input w-20" aria-label="Minimum order amount" inputMode="numeric" autoComplete="off" placeholder="min" value={f.minTotal ?? ""} onChange={(e) => set({ ...f, minTotal: e.target.value ? +e.target.value : undefined })} />
+        <input type="number" className="input w-20" aria-label="Maximum order amount" inputMode="numeric" autoComplete="off" placeholder="max" value={f.maxTotal ?? ""} onChange={(e) => set({ ...f, maxTotal: e.target.value ? +e.target.value : undefined })} />
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs text-muted w-16">Category</span>
         {shown.map((c) => (
-          <button key={c} className="chip" data-on={f.categories.includes(c)} onClick={() => set({ ...f, categories: toggle(f.categories, c) })}>{c}</button>
+          <button key={c} className="chip" data-on={f.categories.includes(c)} onClick={() => set({ ...f, categories: toggle(f.categories, c) })}><Icon name={categoryIcon(c)} size={14} />{c}</button>
         ))}
         {categories.length > 10 && <button className="chip" onClick={() => setAllCats(!allCats)}>{allCats ? "Show fewer" : `More (${categories.length - shown.length}) ▾`}</button>}
         <button className="btn ml-auto" onClick={() => set({ platforms: [], categories: [] })}>Reset</button>

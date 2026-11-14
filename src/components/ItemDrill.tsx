@@ -5,6 +5,7 @@ import type { Order } from "@/lib/types";
 import { PLATFORM_LABEL } from "@/lib/types";
 import { itemDetail } from "@/lib/analytics";
 import { PLATFORM_COLOR, inr } from "@/lib/format";
+import { Icon } from "./art/icons";
 
 const tip = { contentStyle: { background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 } };
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -28,17 +29,17 @@ export function ItemDrill({ orders, name, onClose }: { orders: Order[]; name: st
   const peakDay = d ? d.byWeekday.indexOf(Math.max(...d.byWeekday)) : 0;
   const approx = !!d && d.estimated > 0;
   const stat = (l: string, v: string, sub?: string) => (
-    <div className="card !p-3"><div className="text-xs text-muted">{l}</div><div className="mt-0.5 text-lg font-semibold">{v}</div>{sub && <div className="text-xs text-muted">{sub}</div>}</div>
+    <div className="card !p-3"><div className="text-xs text-muted">{l}</div><div className="num mt-0.5 text-lg font-semibold">{v}</div>{sub && <div className="text-xs text-muted">{sub}</div>}</div>
   );
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/50" onClick={onClose}>
-      <aside className="h-full w-full max-w-2xl overflow-y-auto bg-background p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <aside role="dialog" aria-modal="true" aria-label={`Details for ${name}`} className="h-full w-full max-w-2xl overflow-y-auto overscroll-contain border-l border-border bg-background p-5" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <h2 className="text-xl font-semibold">{name}</h2>
             <p className="text-xs text-muted">Within your current filters</p>
           </div>
-          <button className="btn" onClick={onClose}>Close ✕</button>
+          <button className="btn inline-flex items-center gap-1.5" onClick={onClose}><Icon name="x" size={14} />Close</button>
         </div>
         {!d ? <p className="text-muted">No orders for this item in the current filters.</p> : (
           <div className="space-y-4">
@@ -75,7 +76,7 @@ export function ItemDrill({ orders, name, onClose }: { orders: Order[]; name: st
                   <CartesianGrid stroke="var(--border)" vertical={false} />
                   <XAxis dataKey="d" tick={{ fontSize: 10 }} stroke="var(--muted)" />
                   <YAxis tick={{ fontSize: 10 }} allowDecimals={false} stroke="var(--muted)" width={28} />
-                  <Tooltip {...tip} /><Bar dataKey="v" name="Units" fill="#10b981" radius={2} />
+                  <Tooltip {...tip} /><Bar dataKey="v" name="Units" fill="var(--c-grocery)" radius={2} />
                 </BarChart>
               </ResponsiveContainer>
             </section>
@@ -86,7 +87,7 @@ export function ItemDrill({ orders, name, onClose }: { orders: Order[]; name: st
                   <CartesianGrid stroke="var(--border)" vertical={false} />
                   <XAxis dataKey="period" tick={{ fontSize: 10 }} stroke="var(--muted)" minTickGap={24} />
                   <YAxis tick={{ fontSize: 10 }} allowDecimals={false} stroke="var(--muted)" width={28} />
-                  <Tooltip {...tip} /><Bar dataKey="units" name="Units" fill="#f59e0b" radius={2} />
+                  <Tooltip {...tip} /><Bar dataKey="units" name="Units" fill="var(--warn)" radius={2} />
                 </BarChart>
               </ResponsiveContainer>
             </section>

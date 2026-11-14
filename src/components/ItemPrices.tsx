@@ -47,7 +47,7 @@ export function ItemPrices({ orders, prices, onSet }: { orders: Order[]; prices:
           </li>
         ))}
       </ul>
-      {err && <p className="text-xs" style={{ color: "#ef4444" }}>{err}</p>}
+      {err && <p className="text-xs" style={{ color: "var(--bad)" }}>{err}</p>}
     </div>
   );
 }

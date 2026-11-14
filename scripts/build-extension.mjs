@@ -26,6 +26,8 @@ await Promise.all([
 
 execFileSync(path.join(root, "node_modules/.bin/tailwindcss"), ["-i", src("styles.css"), "-o", path.join(out, "dashboard.css"), "--minify"], { stdio: "inherit", cwd: root });
 for (const f of ["manifest.json", "dashboard.html", "popup.html", "popup.css"]) fs.copyFileSync(src(f), path.join(out, f));
+fs.mkdirSync(path.join(out, "fonts"), { recursive: true });
+for (const f of fs.readdirSync(path.join(root, "public/fonts"))) fs.copyFileSync(path.join(root, "public/fonts", f), path.join(out, "fonts", f));
 for (const f of fs.readdirSync(src("icons"))) fs.copyFileSync(src(`icons/${f}`), path.join(out, "icons", f));
 
 // Guard rails for store review: no remote code, no stray permissions, no dev-only leftovers.
@@ -38,6 +40,9 @@ for (const f of ["background.js", "dashboard.js", "popup.js"]) {
   const t = fs.readFileSync(path.join(out, f), "utf8");
   if (/https?:\/\/[^"'`\s]*\.(js)\b/.test(t) && /createElement\(["']script["']\)/.test(t) && /\.src\s*=\s*["']https?:/.test(t)) problems.push(`${f} may load remote script`);
 }
+const cssText = fs.readFileSync(path.join(out, "dashboard.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, ""); // comments (the Tailwind licence banner has a URL) are not requests
+if (/https?:\/\//.test(cssText.replace(/http:\/\/www\.w3\.org\/[^"')]*/g, ""))) problems.push("dashboard.css references a remote URL (fonts and art must be bundled)");
+for (const m of cssText.matchAll(/url\(["']?([^"')]+)["']?\)/g)) if (!m[1].startsWith("data:") && !fs.existsSync(path.join(out, m[1]))) problems.push(`dashboard.css points at a missing file: ${m[1]}`);
 if (problems.length) { console.error("Build checks failed:\n- " + problems.join("\n- ")); process.exit(1); }
 
 if (process.argv.includes("--zip")) {

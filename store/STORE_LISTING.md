@@ -48,6 +48,7 @@ Show the user their own food-delivery and quick-commerce spending, and help them
 - Privacy policy URL: host `store/PRIVACY.md` publicly (for example GitHub Pages or a public gist) and paste the URL.
 
 ## Assets you still need to provide
+(The extension icon is already the new bill mark. Make screenshots with `src/lib/sample.ts` data, not real orders; pick the look you like best, Khata & Bill is the default. Sizes: 1280x800 screenshots, 440x280 small tile, optional 1400x560 marquee.)
 - Screenshots: at least 1 (1280x800 or 640x400). Use the dashboard with sample or your own data (blur real vendor names if you prefer).
 - Optional: small promo tile 440x280. Icon 128x128 is already in the package.
 

@@ -12,6 +12,8 @@ import { Goals } from "./Goals";
 import { Plan } from "./Plan";
 import { Backup } from "./Backup";
 import { AccuracyNote } from "./AccuracyNote";
+import { BagArt, BowlArt } from "./art/illustrations";
+import { Icon } from "./art/icons";
 import { ItemPrices } from "./ItemPrices";
 import { confidence, reconcile, withAmounts, type Prices } from "@/lib/analytics/amounts";
 import { api } from "@/lib/api";
@@ -26,7 +28,7 @@ function Card({ title, total, className = "", children }: { title: string; total
     <section className={`card ${className}`}>
       <div className="flex items-start justify-between gap-3">
         <h3 className="text-sm font-medium text-muted">{title}</h3>
-        {total && <div className="shrink-0 text-base font-semibold leading-tight">{total.value}</div>}
+        {total && <div className="num shrink-0 text-base font-semibold leading-tight">{total.value}</div>}
       </div>
       {total?.sub && <div className="mt-0.5 text-[11px] leading-tight text-muted">{total.sub}</div>}
       <div className="mt-3">{children}</div>
@@ -70,7 +72,7 @@ function Heatmap({ grid }: { grid: number[][] }) {
             <span className="w-8 text-xs text-muted">{d}</span>
             {grid[di].map((c, h) => (
               <div key={h} title={`${d} ${h}:00: ${c} orders`} className="flex h-5 flex-1 items-center justify-center rounded-sm text-[9px] leading-none"
-                style={{ background: `color-mix(in srgb, var(--accent) ${c ? 12 + 88 * (c / max) : 5}%, transparent)`, color: c / max > 0.45 ? "#fff" : "var(--muted)" }}>{c || ""}</div>
+                style={{ background: `color-mix(in srgb, var(--c-ramp) ${c ? 14 + 86 * (c / max) : 5}%, transparent)`, color: c / max > 0.55 ? "var(--background)" : "var(--muted)" }}>{c || ""}</div>
             ))}
           </div>
         ))}
@@ -141,7 +143,8 @@ export default function Dashboard() {
   if (!all.length)
     return (
       <div className="card text-center space-y-3 py-16">
-        <h2 className="text-xl font-semibold">No orders yet</h2>
+        <div className="art flex justify-center text-foreground"><BowlArt size={112} /></div>
+        <h2 className="text-xl font-semibold">Nothing on the bill yet</h2>
         <p className="text-muted">Log in to Zomato, Swiggy, Blinkit, Zepto and Instamart in this Chrome, then fetch your order history.</p>
         <div className="flex justify-center"><FetchOrders onDone={load} /></div>
         {api.backup && <div className="flex justify-center"><Backup onChange={load} /></div>}
@@ -165,7 +168,7 @@ export default function Dashboard() {
         <FetchOrders onDone={load} />
         {api.backup && (
           <details className="relative ml-auto">
-            <summary className="btn cursor-pointer list-none">Backup &amp; data ▾</summary>
+            <summary className="btn flex cursor-pointer list-none items-center gap-1.5">Backup &amp; data <Icon name="caret-down" size={14} /></summary>
             <div className="card absolute right-0 z-10 mt-1 w-max max-w-[90vw] shadow-lg"><Backup onChange={load} /></div>
           </details>
         )}
@@ -179,9 +182,18 @@ export default function Dashboard() {
       </div>
       {f.categories.length > 0 && <AccuracyNote conf={conf} check={check}><ItemPrices orders={orders} prices={prices} onSet={setPrice} /></AccuracyNote>}
 
+      {orders.length === 0 && (
+        <div className="card flex flex-col items-center gap-2 py-8 text-center">
+          <div className="art text-foreground"><BagArt size={96} /></div>
+          <div className="font-medium">No orders match these filters</div>
+          <p className="max-w-sm text-sm text-muted">Try removing a filter or widening the dates. Your saved orders are untouched.</p>
+          <button className="btn" onClick={() => { setF(emptyFilters); setPage(0); }}>Clear filters</button>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
         {kpiCards.map(([l, v, hint]) => (
-          <div key={l} className="card" title={hint}><div className="text-xs text-muted">{l}</div><div className="mt-1 text-xl font-semibold">{v}</div></div>
+          <div key={l} className="card card-primary rise" title={hint}><div className="text-xs text-muted">{l}</div><div className="num mt-1 text-xl font-semibold">{v}</div></div>
         ))}
       </div>
 
@@ -201,8 +213,8 @@ export default function Dashboard() {
               <YAxis tick={{ fontSize: 11 }} stroke="var(--muted)" tickFormatter={axisInr} />
               <Tooltip {...tip} />
               <Legend />
-              <Area type="monotone" dataKey="food" stackId="1" name="Food" stroke="#e23744" fill="#e23744" fillOpacity={0.35} />
-              <Area type="monotone" dataKey="grocery" stackId="1" name="Grocery" stroke="#10b981" fill="#10b981" fillOpacity={0.35} />
+              <Area type="monotone" dataKey="food" stackId="1" name="Food" stroke="var(--c-food)" fill="var(--c-food)" fillOpacity={0.28} />
+              <Area type="monotone" dataKey="grocery" stackId="1" name="Grocery" stroke="var(--c-grocery)" fill="var(--c-grocery)" fillOpacity={0.28} />
             </AreaChart>
           </ResponsiveContainer>
         </Card>
@@ -263,7 +275,7 @@ export default function Dashboard() {
           {k.fees + k.tip > 0 ? (
             <ResponsiveContainer width="100%" height={180}>
               <PieChart>
-                <Pie data={fees} dataKey="value" nameKey="name" outerRadius={70}>{fees.map((_, i) => <Cell key={i} fill={["#4f46e5", "#f59e0b", "#10b981"][i]} />)}</Pie>
+                <Pie data={fees} dataKey="value" nameKey="name" outerRadius={70}>{fees.map((_, i) => <Cell key={i} fill={["var(--accent)", "var(--warn)", "var(--c-food)"][i]} />)}</Pie>
                 <Tooltip {...tip} /><Legend formatter={(n, e) => `${n} · ${inr(Number((e.payload as { value?: number } | undefined)?.value ?? 0))}`} />
               </PieChart>
             </ResponsiveContainer>
@@ -287,7 +299,7 @@ export default function Dashboard() {
             </thead>
             <tbody>
               {sorted.slice(page * PAGE, (page + 1) * PAGE).map((o) => (
-                <tr key={o.platform + o.id} className="cursor-pointer border-t border-border" onClick={() => setOpen(open === o.platform + o.id ? null : o.platform + o.id)}>
+                <tr key={o.platform + o.id} className="cursor-pointer border-t border-border hover:bg-border/30" tabIndex={0} aria-expanded={open === o.platform + o.id} onClick={() => setOpen(open === o.platform + o.id ? null : o.platform + o.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(open === o.platform + o.id ? null : o.platform + o.id); } }}>
                   <td className="py-2 whitespace-nowrap">{new Date(o.placedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}</td>
                   <td><span className="rounded px-2 py-0.5 text-xs text-white" style={{ background: PLATFORM_COLOR[o.platform] }}>{PLATFORM_LABEL[o.platform]}</span></td>
                   <td>{o.vendor}</td>
@@ -296,7 +308,7 @@ export default function Dashboard() {
                       ? o.items.map((i) => <div key={i.rawName}>{i.qty}× {i.rawName} — {inr(i.amount ?? i.unitPrice * i.qty)} <span className="text-xs">{i.basis === "estimated" ? "est." : i.basis === "entered" ? "your price" : ""}</span></div>)
                       : <span className="line-clamp-1">{o.items.map((i) => `${i.qty}× ${i.name}`).join(", ") || "—"}</span>}
                   </td>
-                  <td className="text-right font-medium">
+                  <td className="num text-right font-medium">
                     {inr(paidOf(o))}
                     {o.partial && <div className="text-xs font-normal text-muted" title="Share of this order that belongs to the selected categories">selected {(o.hi ?? 0) - (o.lo ?? 0) < 0.5 ? "" : "≈ "}{inr(o.total)}</div>}
                   </td>
