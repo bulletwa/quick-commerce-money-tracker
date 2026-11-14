@@ -13,9 +13,11 @@ Productivity (alternative: Shopping)
 Quick Commerce Money Tracker turns your order history from Zomato, Swiggy, Instamart, Blinkit and Zepto into a clear picture of where your money goes, and helps you spend less.
 
 WHAT YOU GET
-• One dashboard for food delivery and grocery orders across all five apps
+• A friendly guided setup: connect your apps, read your orders, done in a few minutes
+• A Home screen with this month at a glance ("On track: ₹13,480 left") and short cards about your habits, like your go-to dish
 • Most-ordered dishes, groceries and restaurants, spend by category, by platform and by month
-• When you order: a day-by-hour heatmap
+• When you order: a day-by-hour view
+• Light and dark, plus a calm dark look
 • Budgets and goals for food and groceries: monthly spend, order counts, small orders, late-night orders. Starter goals are based on your last 2 months, so they are realistic
 • Live tips that update as your orders change, such as items you reorder again and again, or a month running above your usual
 • Toolbar badge that shows how many goals are over or close to their limit
@@ -28,8 +30,8 @@ PRIVATE BY DESIGN
 
 HOW IT WORKS
 1. Log in to your delivery apps in Chrome as usual
-2. Open the extension and click "Open dashboard", then "Fetch orders"
-3. Explore, then add goals
+2. Open the extension, click "Open Money Tracker" and follow the three setup steps (it spots which apps you are logged in to)
+3. Explore Home, Spending, Orders and Goals, then add a goal
 
 Not affiliated with Zomato, Swiggy, Instamart, Blinkit or Zepto.
 
@@ -37,7 +39,7 @@ Not affiliated with Zomato, Swiggy, Instamart, Blinkit or Zepto.
 Show the user their own food-delivery and quick-commerce spending, and help them track budgets and goals against it.
 
 ## Permission justifications (Privacy practices tab)
-- **Host permissions (zomato.com, swiggy.com, instamart.in, blinkit.com, zepto.com, bff-gateway.zepto.com):** needed to read the user's own order history from those sites, only when the user clicks "Fetch orders". These are the extension's single purpose; no other sites are accessed.
+- **Host permissions (zomato.com, swiggy.com, instamart.in, blinkit.com, zepto.com, bff-gateway.zepto.com):** needed to read the user's own order history from those sites, only when the user clicks "Read my orders" / "Read new orders", or during the setup's "which apps are logged in" check (one small request per site). These are the extension's single purpose; no other sites are accessed.
 - **scripting:** injects the order-history reader into those sites so the requests (order list and each order's detail page data: items, prices, bill) run with the user's existing session. The reader keeps only whitelisted order fields and never reads names, phone numbers or addresses.
 - **storage:** stores orders, budgets and goals locally on the user's device.
 - **Remote code:** No. All code is packaged in the extension.
@@ -48,8 +50,8 @@ Show the user their own food-delivery and quick-commerce spending, and help them
 - Privacy policy URL: host `store/PRIVACY.md` publicly (for example GitHub Pages or a public gist) and paste the URL.
 
 ## Assets you still need to provide
-(The extension icon is already the new bill mark. Make screenshots with `src/lib/sample.ts` data, not real orders; pick the look you like best, Khata & Bill is the default. Sizes: 1280x800 screenshots, 440x280 small tile, optional 1400x560 marquee.)
-- Screenshots: at least 1 (1280x800 or 640x400). Use the dashboard with sample or your own data (blur real vendor names if you prefer).
+(The extension icon is already the new bill mark. Make screenshots with `src/lib/sample.ts` data, not real orders; use the default Plate look (a dark one is nice for variety). Sizes: 1280x800 screenshots, 440x280 small tile, optional 1400x560 marquee.)
+- Screenshots: at least 1 (1280x800 or 640x400). Use Home, Spending and the setup screen with sample data (blur real vendor names if you prefer).
 - Optional: small promo tile 440x280. Icon 128x128 is already in the package.
 
 ## Before you submit: risks to know about
