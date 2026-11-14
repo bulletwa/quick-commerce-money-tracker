@@ -10,6 +10,9 @@ export interface ZomatoRaw {
   dishString: string; // "1 x 4 Pcs Samosa + 250 Grams Dhokla, 2 x Tea"
   vendor: string;
   locality?: string;
+  hashId?: string; // used to fetch the order's detail (per-dish prices); not stored
+  /** From /webroutes/order/details: per-dish line totals and the platform's own item total (₹). */
+  detail?: { dishes: { name: string; qty: number; total: number }[]; itemTotal: number | null; discount: number; grandTotal: number | null };
 }
 
 const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
@@ -40,6 +43,30 @@ export function parseDishString(s: string): { qty: number; name: string }[] {
     .map((m) => ({ qty: Number(m[1]), name: m[2].trim() }));
 }
 
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Exact items from the order-detail response, but only when it agrees with itself: the dish lines must add up to the platform's
+ * own "Item total" (within ₹1) and the fees implied by the grand total must be plausible. Otherwise null (stay estimated).
+ */
+export function pricedFromDetail(d: ZomatoRaw["detail"], total: number): Pick<Order, "items" | "itemTotal" | "fees" | "discount"> | null {
+  if (!d || !d.dishes.length || d.itemTotal == null) return null;
+  const dishes = d.dishes.filter((x) => x.name && Number.isFinite(x.total) && x.total >= 0);
+  if (dishes.length !== d.dishes.length) return null;
+  const sum = r2(dishes.reduce((a, x) => a + x.total, 0));
+  if (Math.abs(sum - d.itemTotal) > 1) return null;
+  const discount = Math.max(0, r2(d.discount || 0));
+  const fees = r2(total - sum + discount);
+  if (fees < -1 || fees > sum + 150) return null; // paid less than items minus discounts, or implausibly more in fees than the food cost: something is off in the detail
+  return {
+    items: dishes.map((x) => {
+      const qty = Math.max(1, Math.round(x.qty) || 1);
+      return { name: normalizeName(x.name), rawName: x.name, qty, unitPrice: r2(x.total / qty), category: categorize(x.name, "food") };
+    }),
+    itemTotal: sum, discount, fees: Math.max(0, fees),
+  };
+}
+
 export function mapZomato(raws: ZomatoRaw[]): { orders: Order[]; skipped: number } {
   const orders: Order[] = [];
   let skipped = 0;
@@ -47,6 +74,11 @@ export function mapZomato(raws: ZomatoRaw[]): { orders: Order[]; skipped: number
     const placedAt = parseZomatoDate(r.orderDate ?? "");
     const total = parseRupees(r.totalCost ?? "");
     if (r.label !== "Delivered" || !placedAt || !Number.isFinite(total) || !r.orderId) { skipped++; continue; }
+    const priced = pricedFromDetail(r.detail, total);
+    if (priced) {
+      orders.push({ id: String(r.orderId), platform: "zomato", type: "food", placedAt, vendor: r.vendor || "Zomato", ...priced, total, tip: 0, itemsPriced: true });
+      continue;
+    }
     const items: OrderItem[] = parseDishString(r.dishString ?? "").map((l) => ({
       name: normalizeName(l.name), rawName: l.name, qty: l.qty, unitPrice: 0, category: categorize(l.name, "food"),
     }));

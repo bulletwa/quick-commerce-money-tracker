@@ -2,7 +2,7 @@ import { mapSwiggy } from "../src/lib/connectors/swiggy-web";
 import { mapZomato } from "../src/lib/connectors/zomato-web";
 import { mapBlinkit, mapInstamart, mapZepto } from "../src/lib/connectors/grocery-web";
 import { buildSummary } from "../src/lib/summary";
-import { listGoals, listOrders, upsertOrders } from "./store";
+import { listGoals, listOrders, pricedIds, upsertOrders } from "./store";
 
 // Idle until you click "Fetch orders" in the dashboard. Each platform is read inside its own site's tab (so your login applies), the page-side
 // functions below keep only whitelisted fields (no addresses, phone or payment details), and the result goes to the dashboard.
@@ -21,7 +21,7 @@ async function runZomato() {
     const sec = j?.sections?.SECTION_USER_ORDER_HISTORY, ent = j?.entities?.ORDER;
     if (!sec || !ent) return { error: "unrecognised" };
     return { totalPages: Number(sec.totalPages) || 0, orders: Object.entries(ent).map(([id, o]) => ({
-      orderId: String(o.orderId ?? id), orderDate: o.orderDate, totalCost: o.totalCost, label: o.deliveryDetails?.deliveryLabel,
+      orderId: String(o.orderId ?? id), hashId: o.hashId, orderDate: o.orderDate, totalCost: o.totalCost, label: o.deliveryDetails?.deliveryLabel,
       dishString: o.dishString, vendor: o.resInfo?.name, locality: o.resInfo?.locality?.localityName })) };
   };
   const first = await page(1);
@@ -182,15 +182,78 @@ async function runBlinkitDetails(batch) {
   const out = [];
   await Promise.all(batch.map(async (o) => {
     const d = await call(`https://blinkit.com/v1/layout/order_details/${o.orderId}?cart_id=${o.cartId}`, { method: "POST", headers: {} });
-    const items = [];
+    const items = [], bill = {};
+    // line price = the last "₹n" in the text (a struck-through MRP may come first); bill rows are label/value pairs, "-₹14" is a discount
+    const rupees = (t) => { const m = [...String(t || "").matchAll(/₹\s*([\d,]+(?:\.\d+)?)/g)]; return m.length ? parseFloat(m[m.length - 1][1].replace(/,/g, "")) : null; };
     for (const s of d?.response?.snippets || []) {
+      if (s?.widget_type === "cart_bill_item") {
+        const label = s.data?.left_header?.text, t = String(s.data?.right_header?.text || ""), v = rupees(t);
+        if (label && v != null) bill[label] = t.trim().startsWith("-") ? -v : v;
+        continue;
+      }
       if (s?.widget_type !== "z_v3_image_text_snippet_type_30") continue;
-      const name = s.data?.title?.text, q = (s.data?.subtitle1?.text || "").match(/(\d+)\s*$/);
-      if (name) items.push({ name, qty: q ? parseInt(q[1], 10) : 1 });
+      const name = s.data?.title?.text, q = (s.data?.subtitle1?.text || "").match(/\bx\s*(\d+)\s*$/i), line = rupees(s.data?.subtitle3?.text);
+      if (name) items.push({ name, qty: q ? parseInt(q[1], 10) : 1, line });
     }
-    out.push({ orderId: o.orderId, items });
+    out.push({ orderId: o.orderId, items, bill });
   }));
-  return { items: out };
+  return { details: out };
+}
+// Zomato: per-dish prices and the bill, by the order's hashId (from the list). Only dish lines and money rows are kept; the response also
+// carries phone, address and coordinates, which are never read.
+async function runZomatoDetails(batch) {
+  const sleepP = (ms) => new Promise((r) => setTimeout(r, ms));
+  const out = [];
+  await Promise.all(batch.map(async (b, k) => {
+    await sleepP(k * 200);
+    for (let a = 1; a <= 3; a++) {
+      try {
+        const r = await fetch(`/webroutes/order/details?hashId=${encodeURIComponent(b.hashId)}`, { credentials: "same-origin" });
+        if (r.status === 401 || r.status === 403) { out.push({ orderId: b.orderId, error: "not-logged-in" }); return; }
+        if (!r.ok) { await sleepP((r.status === 429 ? 4000 : 700) * a); continue; }
+        const it = (await r.json())?.details?.order?.items || {};
+        const dishes = (it.dish || []).map((x) => ({ name: String(x.itemName || ""), qty: Number(x.quantity) || 1, total: Number(x.totalCost) }));
+        const itemTotal = Number((it.item_total || [])[0]?.totalCost), grand = Number((it.total_user || [])[0]?.totalCost);
+        // discounts: every group named "*_discount" (coupons come negative, restaurant promos positive, so by absolute value) plus any other negative row
+        let discount = 0;
+        for (const [g, rows] of Object.entries(it)) {
+          if (/^(item_total|dish|subtotal\d*|total_user|savings)$/.test(g)) continue;
+          for (const x of Array.isArray(rows) ? rows : []) { const v = Number(x.totalCost); if (/discount/i.test(g)) discount += Math.abs(v) || 0; else if (v < 0) discount += -v; }
+        }
+        out.push({ orderId: b.orderId, detail: { dishes, itemTotal: Number.isFinite(itemTotal) ? itemTotal : null, discount, grandTotal: Number.isFinite(grand) ? grand : null } });
+        return;
+      } catch { await sleepP(700 * a); }
+    }
+    out.push({ orderId: b.orderId, error: "failed" });
+  }));
+  return { details: out };
+}
+
+// Zepto: per-product final line totals (paise) from the order-detail page call. Same headers as the list call.
+async function runZeptoDetails(batch) {
+  const sleepP = (ms) => new Promise((r) => setTimeout(r, ms));
+  const ck = (n) => { const m = document.cookie.match(new RegExp("(?:^|; )" + n + "=([^;]*)")); return m ? decodeURIComponent(m[1]) : null; };
+  const products = (n, out, d = 0) => { if (n == null || typeof n !== "object" || d > 12) return out; if (!Array.isArray(n) && Array.isArray(n.orderProducts)) out.push(...n.orderProducts); for (const v of Object.values(n)) products(v, out, d + 1); return out; };
+  const out = [];
+  await Promise.all(batch.map(async (b, k) => {
+    await sleepP(k * 250);
+    for (let a = 1; a <= 3; a++) {
+      try {
+        const id = crypto.randomUUID();
+        const r = await fetch("https://bff-gateway.zepto.com/pfs-postorder/api/v1/get-page/ORDER_DETAILS", { method: "POST", credentials: "include", headers: {
+          Accept: "application/json, text/plain, */*", "Content-Type": "application/json", Appversion: "17.2.2", App_version: "17.2.2", App_sub_platform: "WEB", Auth_from_cookie: "true",
+          Auth_revamp_flow: "v2", "request-signature": "PLACEHOLDER_SIGNATURE", request_id: id, requestid: id, "x-xsrf-token": ck("XSRF-TOKEN"),
+          "x-timezone": String(new Date().getTimezoneOffset()) }, body: JSON.stringify({ orderId: b.orderId, page_size: 8, isArchived: false, enforce_platform_type: "DESKTOP" }) });
+        if (r.status === 401 || r.status === 403) { out.push({ orderId: b.orderId, error: "not-logged-in" }); return; }
+        if (!r.ok) { await sleepP((r.status === 429 ? 4000 : 700) * a); continue; }
+        const list = products(await r.json(), [], 0);
+        out.push({ orderId: b.orderId, detail: list.map((p) => ({ name: String(p.storeProduct?.product?.name || ""), qty: Number(p.quantityFulfilled ?? p.quantityOrdered) || 1, total: Number(p.totalFinalSellingPrice) })) });
+        return;
+      } catch { await sleepP(700 * a); }
+    }
+    out.push({ orderId: b.orderId, error: "failed" });
+  }));
+  return { details: out };
 }
 const RUNNERS = { zomato: runZomato, swiggy: runSwiggy, instamart: runInstamart, blinkit: runBlinkit, zepto: runZepto };
 
@@ -223,43 +286,69 @@ async function getTab(platform) {
   return { id: t.id, opened: true };
 }
 
-// Item names per delivered Blinkit order, 4 at a time; a failed batch just leaves those orders without items.
-async function blinkitDetails(tab, orders, send) {
-  const byId = new Map(orders.map((o) => [o.orderId, o]));
-  for (let pass = 0; pass < 3; pass++) {
-    const todo = orders.filter((o) => /^DELIVERED$/i.test(o.status) && o.cartId && !o.items.length);
-    if (!todo.length) break;
-    for (let i = 0; i < todo.length; i += 4) {
-      try {
-        const r = (await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: runBlinkitDetails, args: [todo.slice(i, i + 4)] }))[0]?.result;
-        for (const d of r?.items || []) if (byId.has(d.orderId)) byId.get(d.orderId).items = d.items;
-      } catch { await sleep(2000); }
-      send({ type: "progress", platform: "blinkit", done: Math.min(i + 4, todo.length), of: todo.length, found: orders.length });
-      await sleep(400);
+// Per-order detail calls: item prices and the bill. Each runs inside the site's tab (so the login applies), a few orders at a time.
+// Only orders that are not already priced in storage are fetched, so after the first run a fetch only reads the new orders.
+const DETAILS = {
+  blinkit: { run: runBlinkitDetails, size: 4, id: (o) => o.orderId, eligible: (o) => /^DELIVERED$/i.test(o.status) && o.cartId, arg: (o) => ({ orderId: o.orderId, cartId: o.cartId }),
+    apply: (o, d) => { if (d.items?.length) { o.items = d.items; o.bill = d.bill; } } },
+  zepto: { run: runZeptoDetails, size: 4, id: (o) => o.id, eligible: (o) => /^DELIVERED$/i.test(o.status), arg: (o) => ({ orderId: o.id }),
+    apply: (o, d) => { if (d.detail) o.detail = d.detail; } },
+  zomato: { run: runZomatoDetails, size: 4, id: (o) => o.orderId, eligible: (o) => o.label === "Delivered" && o.hashId, arg: (o) => ({ orderId: o.orderId, hashId: o.hashId }),
+    apply: (o, d) => { if (d.detail) o.detail = d.detail; } },
+};
+
+async function runInTab(tab, func, args) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try { const r = (await chrome.scripting.executeScript({ target: { tabId: tab.id }, func, args }))[0]?.result; if (r || attempt === 2) return r; await sleep(2000); }
+    catch (e) { // the site reloaded its tab mid-run: wait and run again
+      if (attempt === 2) throw e;
+      await sleep(2500);
+      try { await chrome.tabs.get(tab.id); } catch { Object.assign(tab, await getTab(tab.platform)); }
     }
-    await sleep(3000);
   }
 }
 
 async function fetchPlatform(platform, send) {
   const tab = await getTab(platform);
+  tab.platform = platform;
   try {
-    let r;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try { r = (await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: RUNNERS[platform] }))[0]?.result; if (r || attempt === 2) break; await sleep(3000); }
-      catch (e) { // the site reloaded its tab mid-run: wait and run again
-        if (attempt === 2) throw e;
-        await sleep(2500);
-        try { await chrome.tabs.get(tab.id); } catch { Object.assign(tab, await getTab(platform)); }
+    const r = await runInTab(tab, RUNNERS[platform]);
+    if (!r || r.error) return send({ type: "error", platform, error: r?.error || "no-result" });
+    const list = r.orders;
+    const priced = await pricedIds(platform);
+    // never replace an order that already has exact prices with a list-only copy
+    const mapNow = (raws) => { const m = MAPPERS[platform](raws); return { orders: m.orders.filter((o) => !(priced.has(o.id) && !o.itemsPriced)), skipped: m.skipped }; };
+    if (list.length && !mapNow(list).orders.length && mapNow(list).skipped === list.length && !list.some((o) => o && typeof o === "object")) return send({ type: "error", platform, error: "unrecognised" });
+    // 1. the list, so new orders show up straight away even if the detail calls fail
+    const first = mapNow(list);
+    const res = await upsertOrders(first.orders);
+    // 2. exact item prices for orders that do not have them yet
+    const D = DETAILS[platform];
+    const todo = D ? list.filter((o) => D.eligible(o) && !priced.has(String(D.id(o)))) : [];
+    let done = 0, failed = 0, loginError = null;
+    const byId = new Map(todo.map((o) => [String(D.id(o)), o]));
+    for (let pass = 0; pass < 2 && todo.length && !loginError; pass++) {
+      const queue = pass === 0 ? todo : todo.filter((o) => !o.__ok);
+      if (pass === 1) { if (!queue.length) break; await sleep(3000); }
+      for (let i = 0; i < queue.length && !loginError; i += D.size) {
+        const batch = queue.slice(i, i + D.size);
+        let out = [];
+        try { out = (await runInTab(tab, D.run, [batch.map(D.arg)]))?.details || []; } catch { await sleep(2000); }
+        for (const d of out) {
+          const o = byId.get(String(d.orderId));
+          if (!o) continue;
+          if (d.error === "not-logged-in") { loginError = d.error; break; }
+          if (!d.error) { D.apply(o, d); o.__ok = true; }
+        }
+        const got = batch.filter((o) => o.__ok);
+        if (got.length) await upsertOrders(mapNow(got).orders);
+        if (pass === 0) { done += batch.length; send({ type: "progress", platform, what: "prices", done: Math.min(done, todo.length), of: todo.length, found: list.length }); }
+        await sleep(300);
       }
     }
-    if (!r || r.error) return send({ type: "error", platform, error: r?.error || "no-result" });
-    if (platform === "blinkit") await blinkitDetails(tab, r.orders, send);
-    const raw = r.orders.map(({ cartId, ...o }) => o);
-    const mapped = MAPPERS[platform](raw);
-    if (raw.length && !mapped.orders.length && mapped.skipped === raw.length && !raw.some((o) => o && typeof o === "object")) return send({ type: "error", platform, error: "unrecognised" });
-    const res = await upsertOrders(mapped.orders);
-    send({ type: "imported", platform, added: res.added, updated: res.updated, skipped: mapped.skipped });
+    failed = todo.filter((o) => !o.__ok).length;
+    if (loginError) send({ type: "error", platform, error: loginError });
+    else send({ type: "imported", platform, added: res.added, updated: res.updated, skipped: first.skipped, priced: todo.length - failed, failed });
   } catch (e) {
     send({ type: "error", platform, error: String(e?.message || e) });
   } finally {
@@ -280,3 +369,6 @@ chrome.runtime.onConnect.addListener((port) => {
     try { port.disconnect(); } catch {}
   });
 });
+
+// exposed for tests (the bundler drops it from the service worker)
+export { fetchPlatform };

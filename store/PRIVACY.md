@@ -6,7 +6,7 @@ Quick Commerce Money Tracker ("the extension") helps you understand your own spe
 
 ## What the extension does with your data
 
-- **When you click "Fetch orders"**, the extension reads your own order history from Zomato, Swiggy, Instamart, Blinkit and Zepto, using the login you already have in your browser. It does nothing until you click.
+- **When you click "Fetch orders"**, the extension reads your own order history from Zomato, Swiggy, Instamart, Blinkit and Zepto, using the login you already have in your browser, including each order's detail (the items and what each cost, and the bill: fees, taxes, discounts). It does nothing until you click. After the first fetch it only reads orders it hasn't seen before.
 - It keeps only these fields per order: order id, date and time, store or restaurant name, item names and quantities, prices and totals, fees and discounts, and the platform. It does **not** store your name, phone number, address, payment details or passwords. To make its requests the extension uses the session you are already logged in with inside each site's own page; it never stores or transmits your login or tokens.
 - Orders, your budgets and your goals are stored **only in your browser's local extension storage** (`chrome.storage.local`) on your device.
 

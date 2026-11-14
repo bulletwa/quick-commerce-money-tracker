@@ -38,7 +38,7 @@ Show the user their own food-delivery and quick-commerce spending, and help them
 
 ## Permission justifications (Privacy practices tab)
 - **Host permissions (zomato.com, swiggy.com, instamart.in, blinkit.com, zepto.com, bff-gateway.zepto.com):** needed to read the user's own order history from those sites, only when the user clicks "Fetch orders". These are the extension's single purpose; no other sites are accessed.
-- **scripting:** injects the order-history reader into those sites so the request runs with the user's existing session. The reader keeps only whitelisted order fields.
+- **scripting:** injects the order-history reader into those sites so the requests (order list and each order's detail page data: items, prices, bill) run with the user's existing session. The reader keeps only whitelisted order fields and never reads names, phone numbers or addresses.
 - **storage:** stores orders, budgets and goals locally on the user's device.
 - **Remote code:** No. All code is packaged in the extension.
 
@@ -55,4 +55,5 @@ Show the user their own food-delivery and quick-commerce spending, and help them
 1. **Site terms.** The extension reads each site's own order-history endpoints (the same ones their web pages call) with the user's session. These endpoints are not public APIs, so the sites may change them without notice, and their terms of service may restrict automated access. Reviewers may also question it. The user-initiated, read-only, local-only design and the disclosure above are the strongest answer.
 2. **Trademarks.** Keep the platform names factual (as in the description). Do not use their logos or brand colors in the icon or screenshots, and keep the "not affiliated" line.
 3. **Review time.** Extensions with host permissions on several sites get closer review; first review can take days to weeks.
-4. **Zepto request signing.** Zepto's page calls carry a signature header; the extension sends a placeholder. If Zepto starts enforcing it, Zepto fetching will fail with an error until the code is updated.
+4. **Detail calls.** Item prices come from the sites' own order-detail calls (one extra request per order on the first fetch, roughly 1,000+ for a long history). They are undocumented and can change; if one stops matching, those orders silently stay estimated.
+5. **Zepto request signing.** Zepto's page calls carry a signature header; the extension sends a placeholder. If Zepto starts enforcing it, Zepto fetching will fail with an error until the code is updated.

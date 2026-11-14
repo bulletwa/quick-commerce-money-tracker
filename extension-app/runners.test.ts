@@ -1,0 +1,90 @@
+import fs from "node:fs";
+import path from "node:path";
+import vm from "node:vm";
+import { describe, expect, it } from "vitest";
+import { blinkitPriced } from "../src/lib/connectors/grocery-web";
+import { pricedFromDetail } from "../src/lib/connectors/zomato-web";
+
+// The page-side runners are serialised into the site's tab, so they must work with nothing but page globals.
+// Here each one is cut out of background.js and run in a bare vm context with a fake fetch shaped like the real responses.
+const src = fs.readFileSync(path.join(__dirname, "background.js"), "utf8");
+function runner(name: string): string {
+  const i = src.indexOf(`async function ${name}(`);
+  if (i < 0) throw new Error(`no ${name}`);
+  let depth = 0;
+  for (let k = src.indexOf("{", i); k < src.length; k++) {
+    if (src[k] === "{") depth++;
+    else if (src[k] === "}" && --depth === 0) return src.slice(i, k + 1);
+  }
+  throw new Error("unbalanced");
+}
+const json = (status: number, body: unknown) => ({ ok: status < 400, status, json: async () => body });
+const run = (name: string, fetchImpl: (url: string, init?: { body?: string }) => unknown, arg: unknown) => {
+  const ctx = vm.createContext({
+    fetch: async (u: string, i?: { body?: string }) => fetchImpl(u, i), document: { cookie: "XSRF-TOKEN=a" }, crypto: { randomUUID: () => "u" },
+    localStorage: { getItem: (k: string) => (k === "auth" ? '{"accessToken":"t"}' : k === "authKey" ? "k" : null) },
+    chrome: { runtime: { sendMessage() {} } }, setTimeout, AbortSignal, URL, Date, JSON, Promise, Math, Array, Object, Set, Map, String, Number, RegExp, encodeURIComponent, decodeURIComponent, parseInt, parseFloat, Boolean,
+  });
+  ctx.__arg = arg;
+  return vm.runInContext(`(${runner(name)})(__arg)`, ctx) as Promise<{ details: { orderId: string; detail?: unknown; items?: unknown; bill?: Record<string, number>; error?: string }[] }>;
+};
+
+const snippet = (name: string, sub1: string, sub3: string) => ({ widget_type: "z_v3_image_text_snippet_type_30", data: { title: { text: name }, subtitle1: { text: sub1 }, subtitle3: { text: sub3 } } });
+const bill = (l: string, r: string) => ({ widget_type: "cart_bill_item", data: { left_header: { text: l }, right_header: { text: r } } });
+
+describe("runBlinkitDetails", () => {
+  const snippets = [
+    { widget_type: "v2_image_text_snippet_type_30", data: { title: { text: "2 items in this order" } } },
+    snippet("Marlboro Advance Compact", "10 pcs x 2", "₹244"),
+    snippet("Amul Taaza Toned Milk", "500 ml x 2", "~~<regular-200|{grey-600|₹60}>~~ ₹46"),
+    snippet("Fortune Oil", "Pack of 6", "₹1,234.50"), // a trailing number that is not a quantity
+    bill("MRP", "₹304"), bill("Product discount", "-₹14"), bill("Item total", "₹290"), bill("Delivery charges", "+₹12"), bill("Bill total", "₹320"),
+  ];
+  it("reads line prices (struck-through MRP ignored), quantities and signed bill rows", async () => {
+    const r = await run("runBlinkitDetails", () => json(200, { response: { snippets } }), [{ orderId: "9", cartId: "8" }]);
+    const d = r.details[0] as { items: { name: string; qty: number; line: number }[]; bill: Record<string, number> };
+    expect(d.items.map((i) => [i.name, i.qty, i.line])).toEqual([["Marlboro Advance Compact", 2, 244], ["Amul Taaza Toned Milk", 2, 46], ["Fortune Oil", 1, 1234.5]]);
+    expect(d.bill).toMatchObject({ MRP: 304, "Product discount": -14, "Item total": 290, "Delivery charges": 12, "Bill total": 320 });
+  });
+  it("its output feeds straight into the mapper's reconcile check", () => {
+    const items = [{ name: "A", qty: 2, line: 244 }, { name: "B", qty: 2, line: 46 }];
+    expect(blinkitPriced({ items, bill: { "Item total": 290, "Bill total": 320, "Delivery charges": 30 } }, 320)).toMatchObject({ itemTotal: 290, fees: 30 });
+  });
+});
+
+describe("runZomatoDetails", () => {
+  const details = { details: { order: { items: {
+    dish: [{ itemName: "4 Pcs Samosa + 250 Grams Dhokla", quantity: 1, totalCost: 210 }],
+    item_total: [{ totalCost: 210 }], subtotal2: [{ totalCost: 210 }],
+    voucher_discount: [{ itemName: "Coupon - (YUMMY)", totalCost: -100 }],
+    salt_discount: [{ itemName: "Restaurant Promo", totalCost: 35 }], // restaurant promos come with a positive amount
+    tax: [{ totalCost: 8.9 }], charge: [{ totalCost: 44 }, { totalCost: 30 }], platform_charge: [{ totalCost: 14.99 }],
+    total_user: [{ totalCost: 166.59 }], savings: [{ totalCost: 144 }],
+  } }, userPhone: "never read" } };
+  it("returns dishes, the platform's item total, discounts and grand total, nothing personal", async () => {
+    const urls: string[] = [];
+    const r = await run("runZomatoDetails", (u) => { urls.push(u); return json(200, details); }, [{ orderId: "1", hashId: "xEbOxdBq" }]);
+    expect(urls[0]).toBe("/webroutes/order/details?hashId=xEbOxdBq");
+    expect(r.details[0].detail).toEqual({ dishes: [{ name: "4 Pcs Samosa + 250 Grams Dhokla", qty: 1, total: 210 }], itemTotal: 210, discount: 135, grandTotal: 166.59 });
+    expect(JSON.stringify(r)).not.toContain("never read");
+    expect(pricedFromDetail(r.details[0].detail as never, 166.59)).not.toBeNull();
+  });
+  it("reports a logged-out session and retries failures", async () => {
+    expect((await run("runZomatoDetails", () => json(401, {}), [{ orderId: "1", hashId: "h" }])).details[0].error).toBe("not-logged-in");
+    let calls = 0;
+    const r = await run("runZomatoDetails", () => (++calls < 2 ? json(500, {}) : json(200, details)), [{ orderId: "1", hashId: "h" }]);
+    expect(r.details[0].detail).toBeTruthy();
+    expect(calls).toBe(2);
+  });
+});
+
+describe("runZeptoDetails", () => {
+  const product = (name: string, q: number, total: number) => ({ quantityOrdered: q, quantityFulfilled: q, totalFinalSellingPrice: total, storeProduct: { product: { name } } });
+  it("finds nested orderProducts and returns paise line totals", async () => {
+    let body = "";
+    const page = { pageLayout: { widgets: [{ data: { items: [{ orderProductsV2: { sectionData: [{ orderProducts: [product("Marlboro Advance Compact", 3, 36600), product("Milk", 2, 6000)] }] } }] } }] } };
+    const r = await run("runZeptoDetails", (_u, init) => { body = init?.body ?? ""; return json(200, page); }, [{ orderId: "01a0954c" }]);
+    expect(JSON.parse(body)).toMatchObject({ orderId: "01a0954c", isArchived: false });
+    expect(r.details[0].detail).toEqual([{ name: "Marlboro Advance Compact", qty: 3, total: 36600 }, { name: "Milk", qty: 2, total: 6000 }]);
+  });
+});

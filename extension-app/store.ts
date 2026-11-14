@@ -28,6 +28,12 @@ export async function listOrders(): Promise<Order[]> {
     .sort((a, b) => b.placedAt.localeCompare(a.placedAt));
 }
 
+/** Ids of a platform's orders that already have exact item prices (so later fetches can skip their detail calls). */
+export async function pricedIds(platform: string): Promise<Set<string>> {
+  const rows = await read<Rows>("orders", {});
+  return new Set(Object.values(rows).filter((r) => r.data.platform === platform && r.data.itemsPriced === true && r.data.items.length).map((r) => r.data.id));
+}
+
 export function upsertOrders(orders: Order[]) {
   return exclusive(async () => {
     const rows = await read<Rows>("orders", {});
@@ -35,6 +41,7 @@ export function upsertOrders(orders: Order[]) {
     let added = 0;
     for (const o of orders) {
       const k = key(o), prev = rows[k];
+      if (prev?.data.itemsPriced === true && o.itemsPriced === false) continue; // never trade exact prices for a list-only copy
       if (!prev) added++;
       else if (!o.items.length && prev.data.items.length) { // a fetch that failed to read items must not wipe saved ones
         o.items = prev.data.items; o.itemsPriced = prev.data.itemsPriced;

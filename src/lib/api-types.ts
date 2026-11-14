@@ -3,9 +3,9 @@ import type { Goal } from "./goals";
 import type { Order, Platform } from "./types";
 
 export type FetchEvent =
-  | { type: "progress"; platform: string; done: number; of: number; found: number }
+  | { type: "progress"; platform: string; done: number; of: number; found: number; what?: "prices" }
   | { type: "error"; platform: string; error: string }
-  | { type: "imported"; platform: string; added: number; updated: number; skipped: number }
+  | { type: "imported"; platform: string; added: number; updated: number; skipped: number; priced?: number; failed?: number }
   | { type: "done" };
 
 /** Everything the dashboard needs from "the outside". The local-server build and the Chrome-extension build each implement it. */

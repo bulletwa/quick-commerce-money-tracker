@@ -24,9 +24,9 @@ export function FetchOrders({ onDone }: { onDone?: () => void }) {
       await api.fetchOrders(PLATFORMS, (m) => {
         if (m.type === "done") return;
         const label = PLATFORM_LABEL[m.platform as Platform] ?? m.platform;
-        if (m.type === "progress") set(m.platform, { text: `${label}: ${m.of ? `page ${m.done} of ${m.of}` : `${m.found} orders so far`}…` });
+        if (m.type === "progress") set(m.platform, { text: `${label}: ${m.what === "prices" ? `reading item prices, ${m.done} of ${m.of} orders` : m.of ? `page ${m.done} of ${m.of}` : `${m.found} orders so far`}…` });
         else if (m.type === "error") set(m.platform, { text: `${label}: ${ERR[m.error] ?? m.error}`, error: true });
-        else if (m.type === "imported") set(m.platform, { text: `${label}: ${m.added} new, ${m.updated} already had, ${m.skipped} skipped (cancelled/failed)` });
+        else if (m.type === "imported") set(m.platform, { text: `${label}: ${m.added} new, ${m.updated} already had, ${m.skipped} skipped (cancelled/failed)${m.priced ? `; exact item prices for ${m.priced} orders` : ""}${m.failed ? `; ${m.failed} orders\u2019 prices could not be read (they stay estimated)` : ""}` });
       });
     } finally { setBusy(false); onDone?.(); }
   };
