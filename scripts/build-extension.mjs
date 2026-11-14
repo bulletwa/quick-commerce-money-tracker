@@ -28,6 +28,7 @@ execFileSync(path.join(root, "node_modules/.bin/tailwindcss"), ["-i", src("style
 for (const f of ["manifest.json", "dashboard.html", "popup.html", "popup.css"]) fs.copyFileSync(src(f), path.join(out, f));
 fs.mkdirSync(path.join(out, "fonts"), { recursive: true });
 for (const f of fs.readdirSync(path.join(root, "public/fonts"))) fs.copyFileSync(path.join(root, "public/fonts", f), path.join(out, "fonts", f));
+fs.cpSync(path.join(root, "public/img"), path.join(out, "img"), { recursive: true });
 for (const f of fs.readdirSync(src("icons"))) fs.copyFileSync(src(`icons/${f}`), path.join(out, "icons", f));
 
 // Guard rails for store review: no remote code, no stray permissions, no dev-only leftovers.

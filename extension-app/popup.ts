@@ -22,7 +22,7 @@ document.getElementById("open")!.onclick = async () => {
 (async () => {
   const [orders, goals] = await Promise.all([listOrders(), listGoals()]);
   const box = document.getElementById("sum")!, msg = document.getElementById("msg")!;
-  if (!orders.length) { msg.textContent = "No orders yet. Open the dashboard, log in to your delivery apps in this browser, and click Fetch orders."; return; }
+  if (!orders.length) { msg.textContent = "No orders yet. Open Money Tracker and follow the three quick steps to connect your apps."; return; }
   const d = buildSummary(orders, goals);
   box.append(el("h4", `This month (${d.month})`));
   for (const [name, v] of [["Food", d.food], ["Groceries", d.grocery]] as const) {

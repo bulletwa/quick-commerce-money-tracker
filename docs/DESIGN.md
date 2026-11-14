@@ -1,50 +1,45 @@
-# Design system: three looks, one structure
+# Design: "Plate", a friendly tabbed app
 
-Everything visual lives in `src/app/globals.css` (shared by the extension and the local web app). The look is chosen with `<html data-look="khata|pop|ink">`
-(`src/lib/look.ts`, switcher in `src/components/AppHeader.tsx`, remembered per browser in `localStorage` key `mt-look`). Light/dark follows the system; `ink` is always dark.
-Logic (`src/lib/**`, the service worker, storage) has nothing to do with the looks.
+Why this exists: the first designs only repainted one long, data-dense page, and it still felt like a business portal. The rebuild changes the
+*structure* (tabs, guided setup, a one-glance Home) and adds imagery and warmth. Visual code lives in `src/app/globals.css` (shared by the extension
+and the local web app); logic (`src/lib/**`, service worker, storage) is independent of it.
 
-## The looks
-| id | Name | Idea | What differs |
-|---|---|---|---|
-| `khata` (default) | Khata & Bill | The app shows a ledger and a stack of delivery bills, so it looks like one: cool thermal-paper surfaces (deliberately not cream), ink text, monospaced rupee figures | IBM Plex Mono for figures, dotted leader lines on totals, the Monthly set-aside card drawn as a bill with a torn bottom edge, small illustrations, 6 px corners |
-| `pop` | Soft Pop | Airy and friendly | 18 px corners, pill chips, coral accent, figures in Figtree (tabular), illustrations on, no leaders |
-| `ink` | Calm Dark Ink | Quiet and minimal | Always dark, one mint accent, thin rules, illustrations and leaders off |
-
-Restraint rule (from the frontend-design skill): the data stays quiet and legible; personality lives in a few places only: the bill card, dotted leaders, four small illustrations, icons on chips.
-
-## Tokens (CSS variables)
-`--background --card --foreground --muted --border --border-strong --accent --accent-ink --warn --bad --good --c-food --c-grocery --c-ramp --radius --radius-sm --radius-chip --font-display --font-body --font-num --art-display --leader-display`.
-Use tokens, never raw hex, in components (charts take `var(--c-food)` etc. directly). State colours: `--good` on track, `--warn` close to a limit, `--bad` over.
-Platform brand colours (`src/lib/format.ts`) stay in charts for recognition.
-
-**Contrast is enforced**: `node scripts/check-contrast.mjs` checks every text/background pair for every look in light and dark (4.5:1 text, 3:1 graphics and component borders) and fails the run otherwise. Run it after touching a colour.
-
-## Type, spacing, shape
-- Headlines: **Bricolage Grotesque** (variable). Interface: **Figtree** (variable). Figures: **IBM Plex Mono** 400/500/600 (khata) or Figtree tabular (pop, ink). All SIL OFL, self-hosted, latin + latin-ext subsets (latin-ext carries the ₹). ~220 KB.
-- JetBrains Mono, Roboto Mono and DM Mono were rejected because they have no ₹ glyph; always verify U+20B9 before adding a font.
-- Scale ×1.25 (12 14 16 20 25 31 39 px); spacing on a 4 px grid; hierarchy from size, weight and borders (1 px rules), not shadows.
-- Figures use the `.num` class (`font-variant-numeric: tabular-nums`). Headings use `text-wrap: balance`.
-
-## Components and classes
-`.card` (+ `.card-primary` for KPIs and the set-aside bill), `.btn`, `.btn-primary`, `.chip` (`data-on`), `.input`, `.leader` (+ an empty `<i/>` between label and figure), `.bill`, `.num`, `.art` (hidden by the ink look), `.rise` (the one load-in), `.fillbar` (bars animate by `transform: scaleX`, never width).
-Icons: `<Icon name=... />` from `src/components/art/icons.tsx` (Phosphor, MIT). Category icons come from one map there (`categoryIcon`). To add an icon, add its name to `scripts/build-icons.mjs` and run `node scripts/build-icons.mjs`.
-Illustrations: `src/components/art/illustrations.tsx` (BagArt, BowlArt, BillArt, CupArt, Mark): original, one style (3 px ink strokes, one soft accent fill). Decorative (`aria-hidden`).
-No emoji as icons anywhere.
-
-## Motion and accessibility
-- Only `transform` and `opacity` animate; never `transition: all`. 150 ms hover/press, one 240 ms load-in. Everything is switched off under `prefers-reduced-motion`.
-- Visible `:focus-visible` outline on everything; table rows are keyboard-operable; icon-only controls and inputs have `aria-label`s; the look switcher uses `aria-pressed`.
-- Layout is checked at 1280, 768 and 375 px (cards have `min-width: 0` so wide children scroll inside themselves instead of widening the page).
-
-## Assets and licences (all bundled; the extension makes no network requests of its own)
-| Asset | Licence | Where |
+## Principles and where they come from
+| Principle | Source | How it shows up |
 |---|---|---|
-| Bricolage Grotesque, Figtree, IBM Plex Mono | SIL OFL 1.1 | `public/fonts/*.woff2`, licence text `public/fonts/LICENSE-*.txt` |
-| Phosphor Icons (subset) | MIT | `src/components/art/icon-data.ts` (generated), `public/fonts/LICENSE-phosphor-icons.txt` |
-| Illustrations, logo mark, extension icon | original to this project | `src/components/art/illustrations.tsx`, `scripts/make-icons.py` |
-`scripts/build-extension.mjs` copies `public/fonts` into `dist-extension/fonts` and fails the build if the CSS references a remote URL or a missing file.
-Open Doodles (CC0) and unDraw were looked at and not used: people-centred and off-subject. Stock photography is deliberately absent.
+| Onboarding should be fast, fun and optional; teach by doing; postpone nonessential setup | Apple HIG: Onboarding | 3-step guided setup (`app/Setup.tsx`): welcome, connect apps, read orders. Skippable; replay from Settings |
+| Skip tutorial decks unless context is needed | NN/g: Mobile app onboarding | Setup is functional (logins), not instructional. One-time `Tip`s sit next to the thing they explain |
+| Tab bars: few tabs, labelled, never hidden; badges only for critical info | Apple HIG: Tab bars | Home, Spending, Orders, Goals, Settings. Badge only on Goals, only when a goal is over its limit |
+| Empty states show status, teach what will appear, give a path | NN/g: Empty states | `Empty` (app/ui.tsx) with a 3D illustration and a button on every tab |
+| Progressive disclosure, two levels at most | NN/g | Filters: search, dates, apps, type first; "More filters" holds dates, amounts, categories |
+| Loading: show something at once, let people keep working | Apple HIG: Loading; NN/g response times | Reading orders runs above the tabs (`app/Fetch.tsx`), so switching tabs never stops it |
+| Delight: visual, behavioural, reflective | NN/g: Pillars of delight | 3D art; one-glance Home; "About you" story cards. Bad news is stated plainly, never joked about |
+| Keep labels; offer a calm option | Google Material 3 Expressive research | Tab labels always shown; Calm appearance in Settings |
+| Common patterns, big targets, consistency | Zomato Sushi design system | 44 px minimum targets, one component kit |
+| Undo beats confirm dialogs | Web Interface Guidelines | `Toast` with Undo for removing a goal and deleting all data |
 
-## Adding or changing a look
-Add a `:root[data-look="x"]` block (and a dark block if it supports both) to `globals.css`, add it to `LOOKS` in `src/lib/look.ts`, extend `modes` in `scripts/check-contrast.mjs`, then review it at the three widths in both colour schemes.
+## Structure
+- `app/AppShell.tsx`: top tab bar on wide screens, bottom bar on phones; route is the URL hash (`#/home`, `#/spending`, `#/orders`, `#/goals`, `#/settings`, `#/setup`).
+- `app/Data.tsx` (orders, prices, filters, derived values), `app/Fetch.tsx` (read progress), `app/Toast.tsx`.
+- `tabs/Home.tsx` (month ring, Read new orders, story cards from `src/lib/stories.ts`), `Spending.tsx`, `OrdersTab.tsx`, `GoalsTab.tsx`, `Settings.tsx`.
+- Home's ring limit: the user's own "all / spend" goal if any, else the recommended set-aside from the last full months.
+- Story cards never mention tobacco or health items (`SENSITIVE` in `src/lib/goals.ts`; covered by a test).
+
+## Looks
+`<html data-look="plate|calm">` (`src/lib/look.ts`, switcher in Settings, `localStorage` key `mt-look`). `plate` (default): light lilac-white with aubergine ink, chilli
+primary, mango/mint/berry tiles; dark when the system is dark. `calm`: always dark, one mint accent.
+
+## Tokens
+`--background --card --foreground --muted --border --border-strong --accent --accent-ink --warn --bad --good --berry --mango --tile-chilli/berry/mango/mint --radius --radius-sm --shadow --font-display --font-body`.
+Use tokens, never raw hex, in components. Colour is never the only signal (the Home ring also says "On track / Close / Over" in words).
+`node scripts/check-contrast.mjs` enforces WCAG AA for text (4.5:1) and graphics (3:1) in every look and mode.
+
+## Type, motion
+Bricolage Grotesque (display, numbers) and Figtree (UI), self-hosted woff2 with latin-ext for the rupee sign. Motion (`rise`, `pop`, `bob`, ring fill) is off under `prefers-reduced-motion`.
+
+## Imagery and licences (all bundled, no network requests)
+- 58 3D illustrations from Microsoft Fluent UI Emoji (MIT) in `public/img/3d/`; mapped to categories in `components/art/images.tsx` (`categoryArt`).
+- 3 Unsplash photos (Unsplash licence) in `public/img/photos/`; credits in `docs/CREDITS.md` and Settings > About. Unsplash+ photos are not allowed.
+- Small UI icons: Phosphor (MIT), subset built by `scripts/build-icons.mjs`. Tab icons are drawn for this app.
+- No logos of Zomato, Swiggy etc. (trademarks): platforms are a coloured initial.
+- Asset pipeline: `scripts/build-art.py` (Pillow). The extension build fails if CSS references a remote URL or a missing file.

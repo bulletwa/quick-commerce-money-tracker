@@ -107,11 +107,13 @@ upserts per batch, and never replaces a priced order with a list-only copy. Test
 `src/lib/connectors/web.test.ts`.
 
 ## 5b. Look and feel
-Three switchable looks (Khata & Bill, Soft Pop, Calm Dark Ink) share one structure; tokens, fonts, icons, motion rules and licences are in `docs/DESIGN.md`. Contrast is enforced by `node scripts/check-contrast.mjs`.
+A tabbed app (Home, Spending, Orders, Goals, Settings) with a guided first-run setup. Two looks, Plate and Calm. Principles with sources, tokens, imagery and licences are in `docs/DESIGN.md`. Contrast is enforced by `node scripts/check-contrast.mjs`.
 
 ## 6. Dashboard code map
 
-- `src/app/page.tsx`, `src/components/Dashboard.tsx`: main view; `TopList` rows are clickable and show "N× · ≈ ₹X".
+- `src/components/Dashboard.tsx` renders `app/AppShell.tsx` (tabs in `src/components/tabs/`, shared state in `app/Data.tsx` and `app/Fetch.tsx`, first-run flow `app/Setup.tsx`). `TopList` rows (Spending) are clickable and show "N× · ≈ ₹X".
+- Login check for the setup: page-side `checkLogin` in `extension-app/background.js` (one request per site, `unknown` when the site is busy), `checkConnections` in the worker (port `check`), `api.checkConnections`; tested in `runners.test.ts`.
+- `src/lib/stories.ts`: Home story cards (sensitive categories excluded).
 - `src/components/FilterBar.tsx` (the category filter drives every chart), `ItemDrill.tsx` (drawer: frequency, time of day,
   per-platform data, via `itemDetail`), `Plan.tsx` + `src/lib/plan.ts` ("Monthly set-aside": last 3 full months, average + half the gap to the busiest month, rounded up, food and groceries separately; follows the filters except the date range), `Goals.tsx` + `src/lib/goals.ts` (budgets/goals, neutral wording; also follow the filters except the date range, limits/suggestions/tips/badge always use all orders), `ItemPrices.tsx`,
   `AccuracyNote.tsx`, `Backup.tsx`, `FetchOrders.tsx`.

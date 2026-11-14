@@ -1,10 +1,12 @@
 "use client";
 import { useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { useToast } from "./app/Toast";
 
 /** Export / import / erase. Only rendered in the extension build, where the browser holds the only copy of the data. */
 export function Backup({ onChange }: { onChange: () => void }) {
   const file = useRef<HTMLInputElement>(null);
+  const toast = useToast();
   const [msg, setMsg] = useState("");
   const b = api.backup;
   if (!b) return null;
@@ -26,10 +28,11 @@ export function Backup({ onChange }: { onChange: () => void }) {
     if (file.current) file.current.value = "";
   };
   const clear = async () => {
-    if (!confirm("Delete all orders and goals stored by this extension? This cannot be undone.")) return;
+    const snapshot = await b.exportJson(); // kept in memory so Undo can put everything back
     await b.clearAll();
-    setMsg("All data deleted.");
+    setMsg("");
     onChange();
+    toast("All data deleted", async () => { await b.importJson(snapshot); onChange(); });
   };
 
   return (

@@ -8,6 +8,8 @@ export type FetchEvent =
   | { type: "imported"; platform: string; added: number; updated: number; skipped: number; priced?: number; failed?: number }
   | { type: "done" };
 
+export type LoginState = "in" | "out" | "unknown";
+
 /** Everything the dashboard needs from "the outside". The local-server build and the Chrome-extension build each implement it. */
 export interface Api {
   loadOrders(): Promise<Order[]>;
@@ -20,6 +22,8 @@ export interface Api {
   /** false when the fetcher (the extension, for the web build) is not available */
   canFetch(): Promise<boolean>;
   fetchOrders(platforms: readonly Platform[], on: (e: FetchEvent) => void): Promise<void>;
+  /** is the user logged in to each site? "unknown" = could not tell (site busy or changed) */
+  checkConnections(platforms: readonly Platform[], on: (platform: Platform, state: LoginState) => void): Promise<void>;
   /** icon badge: goals over / near their limit (no-op where there is no extension) */
   reportBadge(over: number, warn: number): void;
   /** extension build only */

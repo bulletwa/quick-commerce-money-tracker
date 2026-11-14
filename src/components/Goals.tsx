@@ -5,6 +5,7 @@ import { HABIT_METRICS, METRICS, METRIC_LABEL, SCOPES, byMonth, describeGoal, go
 import { inr } from "@/lib/format";
 import { api } from "@/lib/api";
 import { Icon } from "./art/icons";
+import { useToast } from "./app/Toast";
 
 const COLOR = { ok: "var(--good)", warn: "var(--warn)", over: "var(--bad)" } as const;
 const fmt = (m: Metric, n: number) => (m === "spend" ? inr(n) : String(Math.round(n)));
@@ -58,6 +59,7 @@ function GoalCard({ p, onDelete }: { p: Progress; onDelete: () => void }) {
  * `allOrders` are everything: limits, suggestions, tips and the toolbar badge never depend on the filters.
  */
 export function Goals({ orders, allOrders, filterLabel, onClear }: { orders: Order[]; allOrders: Order[]; filterLabel?: string; onClear?: () => void }) {
+  const toast = useToast();
   const [goals, setGoals] = useState<Goal[] | null>(null);
   const [err, setErr] = useState("");
   const [open, setOpen] = useState(() => { try { return localStorage.getItem("mt-goals-open") !== "0"; } catch { return true; } });
@@ -132,7 +134,7 @@ export function Goals({ orders, allOrders, filterLabel, onClear }: { orders: Ord
 
       {progress.length > 0 && (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {progress.map((p) => <GoalCard key={p.goal.id} p={p} onDelete={() => run(api.deleteGoal(p.goal.id))} />)}
+          {progress.map((p) => <GoalCard key={p.goal.id} p={p} onDelete={() => { const g = p.goal; run(api.deleteGoal(g.id)); toast(`Removed “${g.label}”`, () => { post(g); }); }} />)}
         </div>
       )}
 

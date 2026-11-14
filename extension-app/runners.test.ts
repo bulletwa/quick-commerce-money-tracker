@@ -119,3 +119,31 @@ describe("transient failures", () => {
     expect(out.error).toBe("not-logged-in");
   }, 30_000);
 });
+
+describe("checkLogin", () => {
+  const check = async (platform: string, f: (url: string) => unknown, localAuth = true) => {
+    const ctx = vm.createContext({
+      fetch: async (u: string) => f(u), document: { cookie: "XSRF-TOKEN=a" }, crypto: { randomUUID: () => "u" }, Date, JSON, Promise, RegExp, String, Object, decodeURIComponent,
+      localStorage: { getItem: (k: string) => (localAuth ? (k === "auth" ? '{"accessToken":"t"}' : k === "authKey" ? "k" : null) : null) },
+    });
+    ctx.__p = platform;
+    return (await (vm.runInContext(`(${runner("checkLogin")})(__p)`, ctx) as Promise<{ state: string }>)).state;
+  };
+  it("says in/out per site from one cheap request", async () => {
+    expect(await check("zomato", () => json(200, { sections: { SECTION_USER_ORDER_HISTORY: {} } }))).toBe("in");
+    expect(await check("zomato", () => json(401, {}))).toBe("out");
+    expect(await check("zomato", () => json(200, { sections: {} }))).toBe("out");
+    expect(await check("swiggy", () => json(200, { data: { orders: [] } }))).toBe("in");
+    expect(await check("swiggy", () => json(200, { statusMessage: "Please login" }))).toBe("out");
+    expect(await check("instamart", () => json(200, { statusCode: 0 }))).toBe("in");
+    expect(await check("instamart", () => json(200, { statusCode: 1 }))).toBe("out");
+    expect(await check("zepto", () => json(200, {}))).toBe("in");
+    expect(await check("zepto", () => json(403, {}))).toBe("out");
+    expect(await check("blinkit", () => json(200, {}))).toBe("in");
+    expect(await check("blinkit", () => json(200, {}), false)).toBe("out");
+  });
+  it("says unknown (not out) when the site is busy or unreachable", async () => {
+    expect(await check("swiggy", () => json(503, {}))).toBe("unknown");
+    expect(await check("zepto", () => { throw new Error("offline"); })).toBe("unknown");
+  });
+});

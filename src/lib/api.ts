@@ -52,5 +52,7 @@ export const api: Api = {
     on({ type: "done" });
   },
 
+  async checkConnections(platforms, on) { platforms.forEach((p) => on(p, "unknown")); }, // the local web build cannot look inside other sites
+
   reportBadge(over, warn) { window.postMessage({ source: "mt-dashboard", type: "badge", over, warn }, location.origin); },
 };

@@ -278,6 +278,43 @@ async function runZeptoDetails(batch) {
   }));
   return { details: out };
 }
+// One cheap request per site to see whether the user is logged in (used by the guided setup). Fully self-contained like the runners.
+// Returns { state: "in" | "out" | "unknown" }: "unknown" means the site was busy or changed, so the setup lets the user carry on anyway.
+async function checkLogin(platform) {
+  const verdict = (r) => (r.status === 401 || r.status === 403 ? "out" : r.ok ? "in" : "unknown");
+  try {
+    if (platform === "blinkit") {
+      let auth = null; try { auth = JSON.parse(localStorage.getItem("auth") || "null"); } catch {}
+      return { state: auth?.accessToken && localStorage.getItem("authKey") ? "in" : "out" };
+    }
+    if (platform === "zomato") {
+      const r = await fetch("/webroutes/user/orders?page=1", { credentials: "same-origin" });
+      if (!r.ok) return { state: verdict(r) };
+      try { const j = await r.json(); return { state: j?.sections?.SECTION_USER_ORDER_HISTORY ? "in" : "out" }; } catch { return { state: "out" }; }
+    }
+    if (platform === "swiggy") {
+      const r = await fetch("/dapi/order/all?order_id=", { credentials: "same-origin" });
+      if (!r.ok) return { state: verdict(r) };
+      try { const j = await r.json(); return { state: j?.data ? "in" : /login|auth/i.test(j?.statusMessage || "") ? "out" : "unknown" }; } catch { return { state: "out" }; }
+    }
+    if (platform === "instamart") {
+      const r = await fetch(`https://instamart.in/api/instamart/orders?order_type=DASH&count=1&from_time=${Date.now()}`, { credentials: "include" });
+      if (!r.ok) return { state: verdict(r) };
+      try { const j = await r.json(); return { state: j.statusCode === 0 ? "in" : "out" }; } catch { return { state: "unknown" }; }
+    }
+    if (platform === "zepto") {
+      const ck = (n) => { const m = document.cookie.match(new RegExp("(?:^|; )" + n + "=([^;]*)")); return m ? decodeURIComponent(m[1]) : null; };
+      const id = crypto.randomUUID();
+      const r = await fetch("https://bff-gateway.zepto.com/api/v2/order/?page_number=1", { credentials: "include", headers: {
+        Accept: "application/json, text/plain, */*", Appversion: "17.2.2", App_version: "17.2.2", App_sub_platform: "WEB", Auth_from_cookie: "true",
+        Auth_revamp_flow: "v2", "request-signature": "PLACEHOLDER_SIGNATURE", request_id: id, requestid: id, "x-xsrf-token": ck("XSRF-TOKEN"),
+        "x-timezone": String(new Date().getTimezoneOffset()) } });
+      return { state: verdict(r) };
+    }
+  } catch { /* offline or blocked */ }
+  return { state: "unknown" };
+}
+
 const RUNNERS = { zomato: runZomato, swiggy: runSwiggy, instamart: runInstamart, blinkit: runBlinkit, zepto: runZepto };
 
 // ---------- worker side ----------
@@ -379,6 +416,29 @@ async function fetchPlatform(platform, send) {
   }
 }
 
+async function checkConnections(platforms, send) {
+  await Promise.all(platforms.map(async (platform) => {
+    let tab = null;
+    try {
+      tab = await getTab(platform); tab.platform = platform;
+      const r = await runInTab(tab, checkLogin, [platform]);
+      send({ type: "login", platform, state: r?.state || "unknown" });
+    } catch { send({ type: "login", platform, state: "unknown" }); }
+    finally { if (tab?.opened) chrome.tabs.remove(tab.id).catch(() => {}); }
+  }));
+}
+
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name === "check" && port.sender?.id === chrome.runtime.id) {
+    port.onMessage.addListener(async ({ platforms }) => {
+      const send = (m) => { try { port.postMessage(m); } catch {} };
+      await checkConnections((Array.isArray(platforms) ? platforms : []).filter((p) => p in SITES), send);
+      send({ type: "done" });
+      try { port.disconnect(); } catch {}
+    });
+  }
+});
+
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== "fetch" || port.sender?.id !== chrome.runtime.id) return;
   port.onMessage.addListener(async ({ platforms }) => {
@@ -394,4 +454,4 @@ chrome.runtime.onConnect.addListener((port) => {
 });
 
 // exposed for tests (the bundler drops it from the service worker)
-export { fetchPlatform };
+export { fetchPlatform, checkConnections };
