@@ -9,6 +9,7 @@ import { FilterBar } from "./FilterBar";
 import { FetchOrders } from "./FetchOrders";
 import { ItemDrill } from "./ItemDrill";
 import { Goals } from "./Goals";
+import { Plan } from "./Plan";
 import { Backup } from "./Backup";
 import { AccuracyNote } from "./AccuracyNote";
 import { ItemPrices } from "./ItemPrices";
@@ -269,6 +270,8 @@ export default function Dashboard() {
           ) : <p className="text-sm text-muted">No fees or tips were recorded for this selection, so everything you paid is item cost ({inr(fees[0].value)}).</p>}
         </Card>
       </div>
+
+      <Plan orders={goalOrders} filterLabel={parts.length ? parts.join(" · ") : undefined} />
 
       <Goals orders={goalOrders} allOrders={all} filterLabel={parts.length ? parts.join(" · ") : undefined} onClear={() => { setF(emptyFilters); setPage(0); }} />
 

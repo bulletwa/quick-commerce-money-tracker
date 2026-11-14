@@ -110,7 +110,7 @@ upserts per batch, and never replaces a priced order with a list-only copy. Test
 
 - `src/app/page.tsx`, `src/components/Dashboard.tsx`: main view; `TopList` rows are clickable and show "N× · ≈ ₹X".
 - `src/components/FilterBar.tsx` (the category filter drives every chart), `ItemDrill.tsx` (drawer: frequency, time of day,
-  per-platform data, via `itemDetail`), `Goals.tsx` + `src/lib/goals.ts` (budgets/goals, neutral wording), `ItemPrices.tsx`,
+  per-platform data, via `itemDetail`), `Plan.tsx` + `src/lib/plan.ts` ("Monthly set-aside": last 3 full months, average + half the gap to the busiest month, rounded up, food and groceries separately; follows the filters except the date range), `Goals.tsx` + `src/lib/goals.ts` (budgets/goals, neutral wording; also follow the filters except the date range, limits/suggestions/tips/badge always use all orders), `ItemPrices.tsx`,
   `AccuracyNote.tsx`, `Backup.tsx`, `FetchOrders.tsx`.
 - `src/lib/analytics/index.ts`: filters, `kpis`, `insights`, `topItems`, `itemDetail`, `categorySpend`.
 - `src/app/connect/page.tsx`: setup page (load extension, log in to the five sites in this Chrome, click Fetch).
