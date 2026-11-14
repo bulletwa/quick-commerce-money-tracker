@@ -97,8 +97,8 @@ const isOrder = (o: unknown): o is Order => {
 };
 export async function importJson(text: string) {
   let j: { orders?: unknown[]; goals?: unknown[]; prices?: Record<string, unknown> };
-  try { j = JSON.parse(text); } catch { throw new Error("That file isn't a Money Tracker backup."); }
-  if (!j || !Array.isArray(j.orders)) throw new Error("That file isn't a Money Tracker backup.");
+  try { j = JSON.parse(text); } catch { throw new Error("That file isn't a Zwinkit backup."); }
+  if (!j || !Array.isArray(j.orders)) throw new Error("That file isn't a Zwinkit backup.");
   const orders = j.orders.filter(isOrder);
   if (j.orders.length && !orders.length) throw new Error("No valid orders were found in that file.");
   await upsertOrders(orders);

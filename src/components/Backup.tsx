@@ -14,7 +14,7 @@ export function Backup({ onChange }: { onChange: () => void }) {
   const exportIt = async () => {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([await b.exportJson()], { type: "application/json" }));
-    a.download = `money-tracker-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `zwinkit-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
   };

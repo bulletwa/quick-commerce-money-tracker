@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Money Tracker launcher.
+# Zwinkit launcher.
 # Starts the local dashboard server only when you open it, opens Chrome, and shuts the server down
 # (freeing its memory/CPU) a few minutes after you close the dashboard tab. Nothing here talks to the internet; it serves 127.0.0.1 only.
 #
@@ -10,7 +10,7 @@ PORT=${PORT:-3000}
 ROOT="${0:A:h:h}"
 URL="http://127.0.0.1:$PORT"
 LOG="$ROOT/.data/server.log"
-TITLE="Money Tracker"
+TITLE="Zwinkit"
 export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.volta/bin:$PATH"
 for d in "$HOME"/.nvm/versions/node/*/bin(N); do PATH="$d:$PATH"; done
 
@@ -38,7 +38,7 @@ trap stop_server EXIT INT TERM HUP
 if lsof -ti tcp:$PORT -sTCP:LISTEN >/dev/null 2>&1; then
   if is_ours; then
     [[ -z $LAUNCHER_TEST && -z $NO_OPEN ]] && open "$URL"
-    echo "Money Tracker is already running; opened it."
+    echo "Zwinkit is already running; opened it."
     exit 0   # not started by us, so we don't stop it
   fi
   fail "Port $PORT is used by another program. Close it and try again."

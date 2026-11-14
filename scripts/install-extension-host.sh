@@ -1,5 +1,5 @@
 #!/bin/zsh
-# One-time setup: lets the Money Tracker extension start the app when you click its icon.
+# One-time setup: lets the Zwinkit extension start the app when you click its icon.
 # Writes a single small file into Chrome's NativeMessagingHosts folder; remove it to undo.
 ROOT="${0:A:h:h}"
 NAME="com.moneytracker.launcher"
@@ -15,7 +15,7 @@ mkdir -p "$DIR"
 cat > "$DIR/$NAME.json" <<JSON
 {
   "name": "$NAME",
-  "description": "Starts the local Money Tracker dashboard",
+  "description": "Starts the local Zwinkit dashboard",
   "path": "$ROOT/scripts/native-host.sh",
   "type": "stdio",
   "allowed_origins": ["chrome-extension://$ID/"]

@@ -1,4 +1,4 @@
-# Quick Commerce Money Tracker
+# Zwinkit
 
 A Chrome extension that reads **your own** order history from Zomato, Swiggy, Instamart, Blinkit and Zepto, and shows where your food and grocery money goes: a month-at-a-glance Home, spending breakdowns, exact per-item prices, monthly goals, and a "how much to set aside" plan from your last three months.
 
@@ -16,7 +16,7 @@ A Chrome extension that reads **your own** order history from Zomato, Swiggy, In
 
 ```bash
 npm install
-npm run pack:extension     # builds dist-extension/ and money-tracker-extension.zip
+npm run pack:extension     # builds dist-extension/ and zwinkit-extension.zip
 ```
 
 Then open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and pick `dist-extension/`. Log in to your delivery apps in the same Chrome, open the extension, and follow the three setup steps.

@@ -1,4 +1,4 @@
-// Builds the Chrome Web Store version of the app into dist-extension/ (and money-tracker-extension.zip with --zip).
+// Builds the Chrome Web Store version of the app into dist-extension/ (and zwinkit-extension.zip with --zip).
 // The whole dashboard runs inside the extension: data in chrome.storage.local, order fetching in the service worker.
 import { build } from "esbuild";
 import { execFileSync } from "node:child_process";
@@ -47,7 +47,7 @@ for (const m of cssText.matchAll(/url\(["']?([^"')]+)["']?\)/g)) if (!m[1].start
 if (problems.length) { console.error("Build checks failed:\n- " + problems.join("\n- ")); process.exit(1); }
 
 if (process.argv.includes("--zip")) {
-  const zip = path.join(root, "money-tracker-extension.zip");
+  const zip = path.join(root, "zwinkit-extension.zip");
   fs.rmSync(zip, { force: true });
   execFileSync("zip", ["-qr", zip, "."], { cwd: out });
   console.log("Wrote", zip);

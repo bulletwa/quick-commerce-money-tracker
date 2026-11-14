@@ -1,4 +1,4 @@
-// Chrome native-messaging host: lets the extension popup start the Money Tracker server.
+// Chrome native-messaging host: lets the extension popup start the Zwinkit server.
 // Protocol: 4-byte little-endian length + JSON, on stdin/stdout. It only understands {cmd:"start"} and {cmd:"status"}.
 const { spawn } = require("node:child_process");
 const http = require("node:http");

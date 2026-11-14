@@ -48,4 +48,4 @@ next-env.d.ts
 
 # Chrome Web Store build output
 /dist-extension/
-/money-tracker-extension.zip
+/zwinkit-extension.zip

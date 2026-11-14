@@ -1,7 +1,7 @@
 # Chrome Web Store listing: ready to paste
 
 ## Name
-Quick Commerce Money Tracker
+Zwinkit
 
 ## Summary (max 132 characters)
 See what you spend on food delivery and quick-commerce groceries. Set budgets and goals. Your data never leaves your browser.
@@ -10,7 +10,7 @@ See what you spend on food delivery and quick-commerce groceries. Set budgets an
 Productivity (alternative: Shopping)
 
 ## Detailed description
-Quick Commerce Money Tracker turns your order history from Zomato, Swiggy, Instamart, Blinkit and Zepto into a clear picture of where your money goes, and helps you spend less.
+Zwinkit turns your order history from Zomato, Swiggy, Instamart, Blinkit and Zepto into a clear picture of where your money goes, and helps you spend less.
 
 WHAT YOU GET
 • A friendly guided setup: connect your apps, read your orders, done in a few minutes
@@ -30,7 +30,7 @@ PRIVATE BY DESIGN
 
 HOW IT WORKS
 1. Log in to your delivery apps in Chrome as usual
-2. Open the extension, click "Open Money Tracker" and follow the three setup steps (it spots which apps you are logged in to)
+2. Open the extension, click "Open Zwinkit" and follow the three setup steps (it spots which apps you are logged in to)
 3. Explore Home, Spending, Orders and Goals, then add a goal
 
 Not affiliated with Zomato, Swiggy, Instamart, Blinkit or Zepto.

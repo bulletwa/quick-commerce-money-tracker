@@ -30,7 +30,7 @@ function Shell() {
     <div className="shell">
       <a href="#main" className="skip" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}>Skip to content</a>
       <header className="topbar">
-        <a href="#/home" className="brand" onClick={(e) => { e.preventDefault(); go("home"); }}><Mark /><span>Money Tracker</span></a>
+        <a href="#/home" className="brand" onClick={(e) => { e.preventDefault(); go("home"); }}><Mark /><span>Zwinkit</span></a>
         <TabBar tab={tab} badge={over} go={go} />
       </header>
       <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 py-6" tabIndex={-1}>

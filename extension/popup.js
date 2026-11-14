@@ -21,15 +21,15 @@ document.getElementById("open").onclick = async () => {
   const btn = document.getElementById("open");
   if (await up()) return openTab();
   btn.disabled = true; btn.textContent = "Starting…";
-  msg.textContent = "Starting Money Tracker. The first start can take about 20 seconds.";
+  msg.textContent = "Starting Zwinkit. The first start can take about 20 seconds.";
   const r = await startViaHost();
   if (!r || r.error || !r.ok) {
-    btn.disabled = false; btn.textContent = "Open Money Tracker";
+    btn.disabled = false; btn.textContent = "Open Zwinkit";
     msg.textContent = "One-time setup needed: in the project folder run  scripts/install-extension-host.sh  then reload this extension. Or start Money Tracker.app yourself.";
     return;
   }
   for (let i = 0; i < 90; i++) { if (await up()) return openTab(); await sleep(1000); }
-  btn.disabled = false; btn.textContent = "Open Money Tracker";
+  btn.disabled = false; btn.textContent = "Open Zwinkit";
   msg.textContent = "It didn't start in time. Check .data/server.log in the project folder.";
 };
 

@@ -1,8 +1,8 @@
-# Money Tracker: the older local-server version (still works)
+# Zwinkit: the older local-server version (still works)
 
 > The main project is the Chrome extension; see the root README. This page keeps the notes for the original localhost app.
 
-> **Chrome extension version (Web Store ready):** `npm run pack:extension` builds `dist-extension/` and `money-tracker-extension.zip`.
+> **Chrome extension version (Web Store ready):** `npm run pack:extension` builds `dist-extension/` and `zwinkit-extension.zip`.
 > Load `dist-extension/` via `chrome://extensions` → Developer mode → Load unpacked to try it. Everything runs inside the extension: no server, data in `chrome.storage.local`.
 > Source is in `extension-app/`; it reuses `src/lib` and `src/components`. Store listing text, permission justifications and the privacy policy are in `store/`.
 > To move data from the local app: run `python3 scripts/export-local-backup.py`, then choose `.data/backup.json` with **Import backup** in the extension's dashboard.

@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Quick Commerce Money Tracker",
+  title: "Zwinkit",
   description: "Local-only insights across Zomato and Swiggy",
 };
 
@@ -28,7 +28,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col">
         <header className="border-b border-border bg-card">
           <nav className="mx-auto flex max-w-7xl items-center gap-6 px-4 py-3 text-sm">
-            <span className="font-semibold">₹ Money Tracker</span>
+            <span className="font-semibold">₹ Zwinkit</span>
             <Link href="/" className="text-muted hover:text-foreground">Dashboard</Link>
             <Link href="/connect" className="text-muted hover:text-foreground">Setup</Link>
             <span className="ml-auto text-xs text-muted">Local only · data never leaves this machine</span>

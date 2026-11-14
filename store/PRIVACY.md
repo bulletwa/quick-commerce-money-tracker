@@ -1,8 +1,8 @@
-# Privacy Policy: Quick Commerce Money Tracker
+# Privacy Policy: Zwinkit
 
 _Last updated: 14 November 2026_
 
-Quick Commerce Money Tracker ("the extension") helps you understand your own spending on food delivery and quick-commerce grocery orders.
+Zwinkit ("the extension") helps you understand your own spending on food delivery and quick-commerce grocery orders.
 
 ## What the extension does with your data
 

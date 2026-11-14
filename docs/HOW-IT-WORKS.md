@@ -1,4 +1,4 @@
-# How Money Tracker works (handover notes)
+# How Zwinkit works (handover notes)
 
 Read this first in a new session, then `docs/DATA-SOURCES.md` (exact routes, field names, reference extensions, the 14 Nov 2026 Zomato incident and a decision tree for when a platform stops returning data). It explains what the app is, how orders are fetched, where data lives, and the gotchas
 learned the hard way. `README.md` is the user-facing quick start; `AGENTS.md` warns that this Next.js (16.x) differs from

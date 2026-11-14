@@ -1,4 +1,4 @@
-"""Draws the extension icons (the Money Tracker bill mark on a green tile) as PNGs, no dependencies.
+"""Draws the extension icons (the Zwinkit bill mark on a green tile) as PNGs, no dependencies.
 Same geometry as the Mark component (32-unit grid): rounded tile, a white bill with a torn bottom edge and three ruled lines. Supersampled for smooth edges."""
 import struct, zlib, sys
 

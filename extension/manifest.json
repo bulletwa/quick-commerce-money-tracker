@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Money Tracker Fetcher",
+  "name": "Zwinkit Fetcher",
   "version": "1.1.0",
-  "description": "On request from your local Money Tracker dashboard, reads your own Zomato, Swiggy, Instamart, Blinkit and Zepto order history using your existing logins and hands it to the dashboard. Idle otherwise; nothing leaves your computer.",
+  "description": "On request from your local Zwinkit dashboard, reads your own Zomato, Swiggy, Instamart, Blinkit and Zepto order history using your existing logins and hands it to the dashboard. Idle otherwise; nothing leaves your computer.",
   "permissions": [
     "scripting",
     "nativeMessaging"
@@ -32,7 +32,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Money Tracker"
+    "default_title": "Zwinkit"
   },
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnlr3sZ1eIGabGvV8b6QG5+qvEa2H7Zv8rWBkrSV3wvTQtxFXC2/54uGE1c2uA6P3Ub1eIKkKO4xMWSoBFoZ48eA9yCXjzUn/Q8ihOXUYvi1WPar55T4pE7eNGejszVJRwh17+jsos1b7yLfotx3x4fQdfgLmo3h5SwZFZOmtOdN9y5W6pI6McogJYCd2wcVpn4a1QSNLFJjo5KIbQvSriOLFMjt0HaQkfa5u3aujkHls2EAeEQ0bmbtQOChuZFJtQvagiIw3R9sjBsBORB1gHRSGx6gp1i0uuqPVjW5gD8czHIJsH2lmwcnzH/vucvuewG/hcWha9bD7fKsC6kGwZQIDAQAB"
 }
