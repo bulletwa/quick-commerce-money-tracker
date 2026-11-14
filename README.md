@@ -1,57 +1,50 @@
-# Money Tracker
+# Quick Commerce Money Tracker
 
-> **Chrome extension version (Web Store ready):** `npm run pack:extension` builds `dist-extension/` and `money-tracker-extension.zip`.
-> Load `dist-extension/` via `chrome://extensions` → Developer mode → Load unpacked to try it. Everything runs inside the extension: no server, data in `chrome.storage.local`.
-> Source is in `extension-app/`; it reuses `src/lib` and `src/components`. Store listing text, permission justifications and the privacy policy are in `store/`.
-> To move data from the local app: run `python3 scripts/export-local-backup.py`, then choose `.data/backup.json` with **Import backup** in the extension's dashboard.
-> **Developers / new sessions: read [`docs/HOW-IT-WORKS.md`](docs/HOW-IT-WORKS.md) first** (architecture, how each platform is fetched, gotchas).
-> The sections below describe the older local-server version (still works).
-> **Developers / future sessions:** `docs/HOW-IT-WORKS.md` (architecture) and `docs/DATA-SOURCES.md` (every platform route, field names, tests, reference extensions, troubleshooting).
+A Chrome extension that reads **your own** order history from Zomato, Swiggy, Instamart, Blinkit and Zepto, and shows where your food and grocery money goes: a month-at-a-glance Home, spending breakdowns, exact per-item prices, monthly goals, and a "how much to set aside" plan from your last three months.
 
+**Private by design.** Everything stays in your browser (`chrome.storage.local`). No server, no accounts, no analytics. Backup and restore are plain JSON files.
 
-A local-only dashboard for your Zomato, Swiggy, Instamart, Blinkit and Zepto order history.
-Everything stays on this computer: the app only listens on `127.0.0.1` and stores data in `.data/`.
+![Home](store/screenshots/2-home.png)
 
-## Open it
+| Setup | Spending | Goals |
+|---|---|---|
+| ![Welcome](store/screenshots/1-welcome.png) | ![Spending](store/screenshots/3-spending.png) | ![Goals](store/screenshots/4-goals.png) |
 
-Double-click **Money Tracker.app** (in this folder; drag it to the Dock if you like).
-It starts the server and opens the dashboard in Chrome (where the extension lives). There is no window to manage:
-**close the dashboard tab and the server shuts itself down about 3 minutes later.** Nothing runs in the background otherwise.
+(Screenshots use generated sample data, not real orders.)
 
-From a terminal instead: `npm run app` (same behaviour, same Stop window).
-
-The first launch after changes to the code rebuilds the app (~15 s). macOS may ask once to let the app access the
-Desktop folder: choose Allow.
-
-If you move this folder, re-create the app (it remembers the folder's path):
+## Try it
 
 ```bash
-osacompile -o "Money Tracker.app" -e 'do shell script "nohup /bin/zsh \"'"$PWD"'/scripts/launcher.sh\" >/dev/null 2>&1 &"'
+npm install
+npm run pack:extension     # builds dist-extension/ and money-tracker-extension.zip
 ```
 
-## Your data (`.data/`, never committed, never share it)
+Then open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and pick `dist-extension/`. Log in to your delivery apps in the same Chrome, open the extension, and follow the three setup steps.
 
-| File | What it is |
-|---|---|
-| `orders.db` | all fetched orders (SQLite) |
-| `token` | secret that lets the dashboard page save fetched orders (other websites can't) |
-
-To start from scratch, stop the app and delete `.data/orders.db*`.
-
-## Getting orders
-
-Load the Chrome extension in `extension/` once (its toolbar button also opens the dashboard) (`chrome://extensions` → Developer mode → Load unpacked), log in to the five sites in that Chrome, open the dashboard there and click **Fetch orders**. The extension reads each site's own order-history
-route with your existing login, keeps only the order fields (no addresses, phone or payment details) and passes them to the
-dashboard. It does nothing until you click. Fetching again is safe (orders are matched by real order id).
-
-Limits: only delivered orders are kept. Zomato, Zepto, Instamart and Blinkit give item names but no per-item prices (Swiggy has them).
-Swiggy's web history only reaches about a year back; instamart.in lists only a handful of recent orders. Older Blinkit orders
-show no time of day, so noon is assumed. A Blinkit fetch takes a few minutes because it reads each order's items.
-
-## Development
+## Develop
 
 ```bash
-npm run dev      # development server (http://127.0.0.1:3000)
-npm run build    # production build (the launcher does this when needed)
-npm test         # unit tests
+npm test                  # unit and runner tests
+npm run lint
+npx tsc --noEmit
+node scripts/check-contrast.mjs   # WCAG AA contrast for every look
 ```
+
+The extension (`extension-app/`) shares `src/components` and `src/lib` with an older local Next.js app (see [docs/LOCAL-SERVER.md](docs/LOCAL-SERVER.md)).
+
+## Docs
+
+- [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md): architecture, how orders are fetched from each site, data model, gotchas. **Start here.**
+- [docs/DATA-SOURCES.md](docs/DATA-SOURCES.md): each platform's routes and fields, and how to troubleshoot them.
+- [docs/DESIGN.md](docs/DESIGN.md): design principles, tokens and imagery.
+- [docs/CREDITS.md](docs/CREDITS.md): third-party art, fonts and photos with their licences.
+- [store/](store/): Chrome Web Store listing text, permission justifications, privacy policy.
+
+## Important notes
+
+- The extension calls each site's own order-history endpoints, which are **not public APIs**. They can change without notice, and the sites' terms may restrict automated access. It only runs when you click, using your own login, and keeps only order fields (never addresses, phone numbers or payment details).
+- Not affiliated with Zomato, Swiggy, Instamart, Blinkit or Zepto. Names are used factually.
+
+## Licence
+
+MIT for the code (see [LICENSE](LICENSE)). Bundled art, fonts and photos keep their own licences: see [docs/CREDITS.md](docs/CREDITS.md).
