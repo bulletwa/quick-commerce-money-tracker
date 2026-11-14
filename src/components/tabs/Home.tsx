@@ -24,8 +24,8 @@ function Ring({ spent, limit }: { spent: number; limit: number }) {
   const color = { ok: "var(--good)", warn: "var(--warn)", over: "var(--bad)" }[state];
   const R = 52, C = 2 * Math.PI * R;
   return (
-    <div className="flex flex-wrap items-center gap-5">
-      <div className="relative h-36 w-36 shrink-0">
+    <div className="flex flex-wrap items-center justify-center gap-8">
+      <div className="relative h-44 w-44 shrink-0">
         <svg viewBox="0 0 128 128" className="h-full w-full -rotate-90" aria-hidden="true">
           <circle cx="64" cy="64" r={R} fill="none" stroke="var(--border)" strokeWidth="14" />
           <circle cx="64" cy="64" r={R} fill="none" stroke={color} strokeWidth="14" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - Math.min(1, pct))} style={{ transition: "stroke-dashoffset 700ms cubic-bezier(0.2,0.8,0.2,1)" }} />
@@ -34,7 +34,7 @@ function Ring({ spent, limit }: { spent: number; limit: number }) {
       </div>
       <div className="min-w-0 flex-1 space-y-1">
         <div className="text-sm text-muted">This month so far</div>
-        <div className="num big text-4xl">{inr(spent)}</div>
+        <div className="num big text-5xl">{inr(spent)}</div>
         <div className="font-semibold" style={{ color }}>
           {state === "over" ? `Over your limit by ${inr(spent - limit)}` : state === "warn" ? `Close to your limit: ${inr(limit - spent)} left` : `On track: ${inr(limit - spent)} left`}
         </div>
@@ -57,20 +57,29 @@ export function Home({ go }: { go: (t: TabId) => void }) {
   if (!all) return <p className="text-muted">Loading…</p>;
   if (!all.length) return <Setup go={go} />;
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <h1 className="page-title">{hello()}</h1>
 
-      <section className="card card-primary space-y-4" aria-label="This month">
-        {limit > 0 ? <Ring spent={plan.thisMonth.total} limit={limit} /> : (
-          <div className="space-y-1"><div className="text-sm text-muted">This month so far</div><div className="num big text-4xl">{inr(plan.thisMonth.total)}</div></div>
-        )}
-        <p className="text-xs text-muted">{limit > 0 ? (spendGoal ? "Your own monthly spending limit." : "Based on the average of your last full months, with a cushion.") : "Set a monthly limit in Goals to see how you're doing."}</p>
-        <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
-          <FetchButton />
-          <span className="text-sm text-muted">{last ? `Last read ${ago(last)}` : "Read new orders to keep this up to date."}</span>
+      <div className="grid gap-4 lg:grid-cols-5">
+        <section className="card card-primary flex flex-col justify-center gap-3 py-8 lg:col-span-3" aria-label="This month">
+          {limit > 0 ? <Ring spent={plan.thisMonth.total} limit={limit} /> : (
+            <div className="space-y-1"><div className="text-sm text-muted">This month so far</div><div className="num big text-5xl">{inr(plan.thisMonth.total)}</div></div>
+          )}
+          <p className="text-xs text-muted">{limit > 0 ? (spendGoal ? "Measured against your own monthly spending limit." : "Limit: your recent monthly average plus a cushion.") : "Set a monthly limit in Goals to see how you're doing."}</p>
+        </section>
+
+        <div className="flex flex-col gap-4 lg:col-span-2">
+          <section className="card flex flex-1 flex-col justify-center gap-3" aria-label="Update">
+            <div className="flex items-center gap-3"><Art3D name="shopping-bags" size={44} /><div><div className="font-semibold">Stay up to date</div><div className="text-sm text-muted">{last ? `Last read ${ago(last)}` : "Not read yet"}</div></div></div>
+            <FetchButton />
+            <FetchStatus />
+          </section>
+          <button className="card tile-link flex-1 text-left" onClick={() => go("goals")}>
+            <Art3D name="money-bag" size={44} />
+            <div><div className="font-semibold">Monthly set-aside</div><div className="text-sm text-muted">{plan.months.length ? `Keep about ${inr(plan.recommended.total)} aside on the 1st.` : "See how much to keep aside each month."}</div></div>
+          </button>
         </div>
-        <FetchStatus />
-      </section>
+      </div>
 
       {stories.length > 0 && (
         <section aria-label="About you">
@@ -78,7 +87,7 @@ export function Home({ go }: { go: (t: TabId) => void }) {
           <ul className="stories">
             {stories.map((s, i) => (
               <li key={s.id} className="story rise" style={{ animationDelay: `${i * 70}ms` }}>
-                <Art3D name={s.art} size={56} />
+                <Art3D name={s.art} size={52} />
                 <div className="text-xs font-semibold uppercase tracking-wide text-muted">{s.kicker}</div>
                 <div className="text-xl font-bold leading-tight" style={{ fontFamily: "var(--font-display)" }}>{s.headline}</div>
                 <div className="text-sm text-muted">{s.detail}</div>
@@ -87,17 +96,6 @@ export function Home({ go }: { go: (t: TabId) => void }) {
           </ul>
         </section>
       )}
-
-      <section className="grid gap-4 sm:grid-cols-2" aria-label="Shortcuts">
-        <button className="card tile-link text-left" onClick={() => go("goals")}>
-          <Art3D name="money-bag" size={44} />
-          <div><div className="font-semibold">Monthly set-aside</div><div className="text-sm text-muted">{plan.months.length ? `Put aside about ${inr(plan.recommended.total)} at the start of the month.` : "See how much to keep aside each month."}</div></div>
-        </button>
-        <button className="card tile-link text-left" onClick={() => go("spending")}>
-          <Art3D name="receipt" size={44} />
-          <div><div className="font-semibold">All your spending</div><div className="text-sm text-muted">Charts by month, app and category.</div></div>
-        </button>
-      </section>
     </div>
   );
 }

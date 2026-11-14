@@ -127,3 +127,4 @@ main:focus { outline: none; }
 .skip:focus { top: 8px; }
 html { -webkit-tap-highlight-color: transparent; }
 button, a, .chip, .btn { touch-action: manipulation; }
+@media (min-width: 768px) { .stories { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); overflow: visible; } .story { flex: none; } }
