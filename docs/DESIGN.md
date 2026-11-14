@@ -11,7 +11,7 @@ and the local web app); logic (`src/lib/**`, service worker, storage) is indepen
 | Skip tutorial decks unless context is needed | NN/g: Mobile app onboarding | Setup is functional (logins), not instructional. One-time `Tip`s sit next to the thing they explain |
 | Tab bars: few tabs, labelled, never hidden; badges only for critical info | Apple HIG: Tab bars | Home, Spending, Orders, Goals, Settings. Badge only on Goals, only when a goal is over its limit |
 | Empty states show status, teach what will appear, give a path | NN/g: Empty states | `Empty` (app/ui.tsx) with a 3D illustration and a button on every tab |
-| Progressive disclosure, two levels at most | NN/g | Filters: search, dates, apps, type first; "More filters" holds dates, amounts, categories |
+| Progressive disclosure, two levels at most | NN/g | Filters: search, dates, apps, type first; "More filters" holds dates, amounts, categories. Spending shows one total and one of four sections at a time |
 | Loading: show something at once, let people keep working | Apple HIG: Loading; NN/g response times | Reading orders runs above the tabs (`app/Fetch.tsx`), so switching tabs never stops it |
 | Delight: visual, behavioural, reflective | NN/g: Pillars of delight | 3D art; one-glance Home; "About you" story cards. Bad news is stated plainly, never joked about |
 | Keep labels; offer a calm option | Google Material 3 Expressive research | Tab labels always shown; Calm appearance in Settings |
@@ -21,7 +21,10 @@ and the local web app); logic (`src/lib/**`, service worker, storage) is indepen
 ## Structure
 - `app/AppShell.tsx`: top tab bar on wide screens, bottom bar on phones; route is the URL hash (`#/home`, `#/spending`, `#/orders`, `#/goals`, `#/settings`, `#/setup`).
 - `app/Data.tsx` (orders, prices, filters, derived values), `app/Fetch.tsx` (read progress), `app/Toast.tsx`.
-- `tabs/Home.tsx` (month ring, Read new orders, story cards from `src/lib/stories.ts`), `Spending.tsx`, `OrdersTab.tsx`, `GoalsTab.tsx`, `Settings.tsx`.
+- `tabs/Home.tsx`: two-column hero (month ring on the left; "Stay up to date" with Read new orders and the Monthly set-aside shortcut on the right), then "About you" story cards from `src/lib/stories.ts` (a row of equal cards on wide screens, swipeable on phones).
+- `tabs/Spending.tsx`: one big total (food vs groceries bar, orders, average order, per month), then four sections shown one at a time: Overview (over-time chart + by app), Favourites (dishes, groceries), Where it goes (categories, restaurants, fees/tips/savings), When (day x hour grid).
+  Ranked data uses the `Bars` component (plain div bars, top 6 + "Show all") instead of axis charts, so labels cannot clip. Lesson from user feedback: a page of 15 cards, each with its own totals, reads as "bombarded"; lead with one number and reveal the rest on request.
+- `OrdersTab.tsx` (cards on phones, table on wide screens), `GoalsTab.tsx`, `Settings.tsx`.
 - Home's ring limit: the user's own "all / spend" goal if any, else the recommended set-aside from the last full months.
 - Story cards never mention tobacco or health items (`SENSITIVE` in `src/lib/goals.ts`; covered by a test).
 

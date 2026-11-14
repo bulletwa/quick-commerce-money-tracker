@@ -111,7 +111,7 @@ A tabbed app (Home, Spending, Orders, Goals, Settings) with a guided first-run s
 
 ## 6. Dashboard code map
 
-- `src/components/Dashboard.tsx` renders `app/AppShell.tsx` (tabs in `src/components/tabs/`, shared state in `app/Data.tsx` and `app/Fetch.tsx`, first-run flow `app/Setup.tsx`). `TopList` rows (Spending) are clickable and show "N× · ≈ ₹X".
+- `src/components/Dashboard.tsx` renders `app/AppShell.tsx` (tabs in `src/components/tabs/`, shared state in `app/Data.tsx` and `app/Fetch.tsx`, first-run flow `app/Setup.tsx`). Spending's `Bars` rows (Favourites) are clickable and open `ItemDrill`.
 - Login check for the setup: page-side `checkLogin` in `extension-app/background.js` (one request per site, `unknown` when the site is busy), `checkConnections` in the worker (port `check`), `api.checkConnections`; tested in `runners.test.ts`.
 - `src/lib/stories.ts`: Home story cards (sensitive categories excluded).
 - `src/components/FilterBar.tsx` (the category filter drives every chart), `ItemDrill.tsx` (drawer: frequency, time of day,
