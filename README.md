@@ -1,5 +1,12 @@
 # Money Tracker
 
+> **Chrome extension version (Web Store ready):** `npm run pack:extension` builds `dist-extension/` and `money-tracker-extension.zip`.
+> Load `dist-extension/` via `chrome://extensions` → Developer mode → Load unpacked to try it. Everything runs inside the extension: no server, data in `chrome.storage.local`.
+> Source is in `extension-app/`; it reuses `src/lib` and `src/components`. Store listing text, permission justifications and the privacy policy are in `store/`.
+> To move data from the local app: run `python3 scripts/export-local-backup.py`, then choose `.data/backup.json` with **Import backup** in the extension's dashboard.
+> The sections below describe the older local-server version (still works).
+
+
 A local-only dashboard for your Zomato, Swiggy, Instamart, Blinkit and Zepto order history.
 Everything stays on this computer: the app only listens on `127.0.0.1` and stores data in `.data/`.
 

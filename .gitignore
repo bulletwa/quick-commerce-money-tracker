@@ -45,3 +45,7 @@ next-env.d.ts
 
 # local launcher (contains this machine's paths)
 /Money Tracker.app/
+
+# Chrome Web Store build output
+/dist-extension/
+/money-tracker-extension.zip

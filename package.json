@@ -8,7 +8,9 @@
     "start": "next start -H 127.0.0.1",
     "lint": "eslint",
     "test": "vitest run",
-    "app": "scripts/launcher.sh"
+    "app": "scripts/launcher.sh",
+    "build:extension": "node scripts/build-extension.mjs",
+    "pack:extension": "node scripts/build-extension.mjs --zip"
   },
   "dependencies": {
     "better-sqlite3": "^13.1.1",
@@ -19,11 +21,14 @@
     "recharts": "^3.10.1"
   },
   "devDependencies": {
+    "@tailwindcss/cli": "^4.3.3",
     "@tailwindcss/turbopack": "4.3.3",
     "@types/better-sqlite3": "^9.6.0",
+    "@types/chrome": "^0.3.7",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "esbuild": "^0.28.2",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
     "tailwindcss": "4.3.3",

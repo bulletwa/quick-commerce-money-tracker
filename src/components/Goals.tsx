@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Order } from "@/lib/types";
 import { METRICS, METRIC_LABEL, SCOPES, describeGoal, goalProgress, limitFromAverage, recentAverage, smartTips, suggestGoals, type Goal, type Metric, type Progress, type Scope } from "@/lib/goals";
 import { inr } from "@/lib/format";
+import { api } from "@/lib/api";
 
 const COLOR = { ok: "#10b981", warn: "#f59e0b", over: "#ef4444" } as const;
 const fmt = (m: Metric, n: number) => (m === "spend" ? inr(n) : String(Math.round(n)));
@@ -54,25 +55,20 @@ export function Goals({ orders }: { orders: Order[] }) {
   const [err, setErr] = useState("");
   const [form, setForm] = useState<{ scope: Scope; metric: Metric; limit: string; label: string }>({ scope: "food", metric: "orders", limit: "", label: "" });
 
-  const call = async (init?: RequestInit, qs = "") => {
-    try {
-      const r = await fetch("/api/goals" + qs, init);
-      if (!r.ok) throw new Error(await r.text());
-      setGoals((await r.json()).goals);
-      setErr("");
-    } catch (e) { setErr(e instanceof Error ? e.message : "Could not reach the goals service"); }
+  const run = async (p: Promise<Goal[]>) => {
+    try { setGoals(await p); setErr(""); } catch (e) { setErr(e instanceof Error ? e.message : "Could not save the goal"); }
   };
-  useEffect(() => { call(); }, []);
+  useEffect(() => { api.listGoals().then(setGoals, (e) => setErr(e instanceof Error ? e.message : "Could not load goals")); }, []);
 
   const now = useMemo(() => new Date(), []);
   const progress = useMemo(() => (goals ?? []).map((g) => goalProgress(g, orders, now)), [goals, orders, now]);
   const tips = useMemo(() => smartTips(orders, now), [orders, now]);
   const suggestions = useMemo(() => suggestGoals(orders, now), [orders, now]);
   useEffect(() => { // tell the extension (if installed) how many goals are over/near their limit, for its icon badge
-    if (goals) window.postMessage({ source: "mt-dashboard", type: "badge", over: progress.filter((p) => p.state === "over").length, warn: progress.filter((p) => p.state === "warn").length }, location.origin);
+    if (goals) api.reportBadge(progress.filter((p) => p.state === "over").length, progress.filter((p) => p.state === "warn").length);
   }, [goals, progress]);
   const formAvg = useMemo(() => recentAverage(orders, { scope: form.scope, metric: form.metric, threshold: 200 }, 2, now), [orders, form.scope, form.metric, now]);
-  const post = (body: unknown) => call({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const post = (body: unknown) => run(api.saveGoals(body));
   const month = now.toLocaleString("en-IN", { month: "long", year: "numeric" });
 
   const add = () => {
@@ -106,7 +102,7 @@ export function Goals({ orders }: { orders: Order[] }) {
 
       {progress.length > 0 && (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {progress.map((p) => <GoalCard key={p.goal.id} p={p} onDelete={() => call({ method: "DELETE" }, `?id=${encodeURIComponent(p.goal.id)}`)} />)}
+          {progress.map((p) => <GoalCard key={p.goal.id} p={p} onDelete={() => run(api.deleteGoal(p.goal.id))} />)}
         </div>
       )}
 

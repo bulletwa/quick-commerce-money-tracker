@@ -182,3 +182,18 @@ export function smartTips(orders: Order[], now = new Date()): Tip[] {
   }
   return tips;
 }
+
+/** Validates an untrusted goal object (from the API or a backup file). Returns null when anything is off. */
+export function parseGoal(b: unknown): Goal | null {
+  if (!b || typeof b !== "object") return null;
+  const x = b as Record<string, unknown>;
+  const limit = Number(x.limit);
+  const threshold = x.threshold == null ? undefined : Number(x.threshold);
+  if (!SCOPES.includes(x.scope as Scope) || !METRICS.includes(x.metric as Metric)) return null;
+  if (!Number.isFinite(limit) || limit < 0 || limit > 1e7) return null;
+  if (threshold != null && (!Number.isFinite(threshold) || threshold < 0 || threshold > 1e6)) return null;
+  const label = String(x.label ?? "").trim().slice(0, 80);
+  if (!label) return null;
+  const id = typeof x.id === "string" && /^[\w-]{1,40}$/.test(x.id) ? x.id : crypto.randomUUID();
+  return { id, label, scope: x.scope as Scope, metric: x.metric as Metric, limit, ...(x.metric === "small_orders" ? { threshold: threshold ?? 200 } : {}) };
+}

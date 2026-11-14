@@ -9,6 +9,8 @@ import { FilterBar } from "./FilterBar";
 import { FetchOrders } from "./FetchOrders";
 import { ItemDrill } from "./ItemDrill";
 import { Goals } from "./Goals";
+import { Backup } from "./Backup";
+import { api } from "@/lib/api";
 
 const tip = { formatter: (v: unknown) => inr(Number(v)), contentStyle: { background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 } };
 
@@ -71,7 +73,7 @@ export default function Dashboard() {
   const [open, setOpen] = useState<string | null>(null);
   const [drill, setDrill] = useState<string | null>(null);
 
-  const load = () => fetch("/api/orders").then((r) => r.json()).then((d) => setAll(d.orders));
+  const load = () => api.loadOrders().then(setAll);
   useEffect(() => { load(); }, []);
 
   const categories = useMemo(() => [...new Set((all ?? []).flatMap((o) => o.items.map((i) => i.category)))].sort(), [all]);
@@ -94,8 +96,9 @@ export default function Dashboard() {
     return (
       <div className="card text-center space-y-3 py-16">
         <h2 className="text-xl font-semibold">No orders yet</h2>
-        <p className="text-muted">Log in to Zomato and Swiggy in this Chrome, then fetch your order history.</p>
+        <p className="text-muted">Log in to Zomato, Swiggy, Blinkit, Zepto and Instamart in this Chrome, then fetch your order history.</p>
         <div className="flex justify-center"><FetchOrders onDone={load} /></div>
+        {api.backup && <div className="flex justify-center"><Backup onChange={load} /></div>}
       </div>
     );
 
@@ -106,7 +109,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-4">
-      <div className="card"><FetchOrders onDone={load} /></div>
+      <div className="card space-y-3"><FetchOrders onDone={load} />{api.backup && <Backup onChange={load} />}</div>
       <FilterBar f={f} set={(n) => { setF(n); setPage(0); }} categories={categories} />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
