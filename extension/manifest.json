@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "Money Tracker Fetcher",
+  "version": "1.0.0",
+  "description": "On request from your local Money Tracker dashboard, reads your own Zomato, Swiggy, Instamart, Blinkit and Zepto order history using your existing logins and hands it to the dashboard. Idle otherwise; nothing leaves your computer.",
+  "permissions": [
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://www.zomato.com/*",
+    "https://www.swiggy.com/*",
+    "https://instamart.in/*",
+    "https://blinkit.com/*",
+    "https://www.zepto.com/*",
+    "https://bff-gateway.zepto.com/*",
+    "http://127.0.0.1:3000/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://127.0.0.1:3000/*"
+      ],
+      "js": [
+        "bridge.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Money Tracker"
+  }
+}

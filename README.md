@@ -1,36 +1,48 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Money Tracker
 
-## Getting Started
+A local-only dashboard for your Zomato, Swiggy, Instamart, Blinkit and Zepto order history.
+Everything stays on this computer: the app only listens on `127.0.0.1` and stores data in `.data/`.
 
-First, run the development server:
+## Open it
+
+Double-click **Money Tracker.app** (in this folder; drag it to the Dock if you like).
+It starts the server and opens the dashboard in Chrome (where the extension lives). There is no window to manage:
+**close the dashboard tab and the server shuts itself down about 3 minutes later.** Nothing runs in the background otherwise.
+
+From a terminal instead: `npm run app` (same behaviour, same Stop window).
+
+The first launch after changes to the code rebuilds the app (~15 s). macOS may ask once to let the app access the
+Desktop folder: choose Allow.
+
+If you move this folder, re-create the app (it remembers the folder's path):
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+osacompile -o "Money Tracker.app" -e 'do shell script "nohup /bin/zsh \"'"$PWD"'/scripts/launcher.sh\" >/dev/null 2>&1 &"'
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Your data (`.data/`, never committed, never share it)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| File | What it is |
+|---|---|
+| `orders.db` | all fetched orders (SQLite) |
+| `token` | secret that lets the dashboard page save fetched orders (other websites can't) |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+To start from scratch, stop the app and delete `.data/orders.db*`.
 
-## Learn More
+## Getting orders
 
-To learn more about Next.js, take a look at the following resources:
+Load the Chrome extension in `extension/` once (its toolbar button also opens the dashboard) (`chrome://extensions` → Developer mode → Load unpacked), log in to the five sites in that Chrome, open the dashboard there and click **Fetch orders**. The extension reads each site's own order-history
+route with your existing login, keeps only the order fields (no addresses, phone or payment details) and passes them to the
+dashboard. It does nothing until you click. Fetching again is safe (orders are matched by real order id).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Limits: only delivered orders are kept. Zomato, Zepto, Instamart and Blinkit give item names but no per-item prices (Swiggy has them).
+Swiggy's web history only reaches about a year back; instamart.in lists only a handful of recent orders. Older Blinkit orders
+show no time of day, so noon is assumed. A Blinkit fetch takes a few minutes because it reads each order's items.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Development
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run dev      # development server (http://127.0.0.1:3000)
+npm run build    # production build (the launcher does this when needed)
+npm test         # unit tests
+```

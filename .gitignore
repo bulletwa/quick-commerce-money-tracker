@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local data (orders, login sessions) - never commit
+/.data/
+
+# local launcher (contains this machine's paths)
+/Money Tracker.app/
