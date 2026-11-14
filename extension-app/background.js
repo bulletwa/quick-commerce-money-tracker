@@ -74,8 +74,18 @@ async function runInstamart() {
       if (!o?.order_id || seen.has(o.order_id)) continue;
       seen.add(o.order_id); added++;
       const m = o.order_data_v2?.total || {};
+      // Item prices are in the same response: order_data.orders[].order_jobs[].metadata is a JSON string whose bill.billedItems[] has each
+      // line's total (bill.totalCost) and the job's item cost (bill.totalItemCost). Only names, quantities and those amounts are kept.
+      const lines = []; let itemCost = 0, haveCost = false;
+      for (const job of (o.order_data?.orders || []).flatMap((x) => x.order_jobs || [])) {
+        let md = job.metadata; if (typeof md === "string") { try { md = JSON.parse(md); } catch { md = null; } }
+        const bill = md?.bill; if (!bill) continue;
+        for (const b of bill.billedItems || []) lines.push({ name: String(b.item?.name || ""), qty: Number(b.bill?.quantity ?? b.item?.quantity) || 1, total: Number(b.bill?.totalCost) });
+        if (Number.isFinite(Number(bill.totalItemCost))) { itemCost += Number(bill.totalItemCost); haveCost = true; }
+      }
       all.push({ order_id: String(o.order_id), created_at: o.created_at, status: o.history_status, units: m.units, nanos: m.nanos,
-        items: (o.order_data_v2?.shipments || []).flatMap((s) => s.items || []).map((i) => ({ name: i.name, quantity: i.quantity })) });
+        items: (o.order_data_v2?.shipments || []).flatMap((s) => s.items || []).map((i) => ({ name: i.name, quantity: i.quantity })),
+        lines, itemCost: haveCost ? itemCost : null });
     }
     const oldest = list[list.length - 1]?.created_at;
     progress("instamart", ++pages, 0, all.length);
@@ -193,7 +203,7 @@ async function runBlinkitDetails(batch) {
       }
       if (s?.widget_type !== "z_v3_image_text_snippet_type_30") continue;
       const name = s.data?.title?.text, q = (s.data?.subtitle1?.text || "").match(/\bx\s*(\d+)\s*$/i), line = rupees(s.data?.subtitle3?.text);
-      if (name) items.push({ name, qty: q ? parseInt(q[1], 10) : 1, line });
+      if (name && (line != null || s.data?.subtitle1?.text)) items.push({ name, qty: q ? parseInt(q[1], 10) : 1, line }); // a "1 item unavailable" row has no price or quantity
     }
     out.push({ orderId: o.orderId, items, bill });
   }));

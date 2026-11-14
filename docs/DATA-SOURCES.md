@@ -22,7 +22,7 @@ evidence base: exact routes, field names, who we learned them from, how they wer
 |---|---|---|---|---|
 | Zomato | `GET /webroutes/user/orders?page=N` (106 pages, 10 orders each) | `GET /webroutes/order/details?hashId=<hashId>` | Zomato web session cookies | list: all 886; detail: 54 orders, Jun 2018 to Nov 2026 |
 | Swiggy | `GET /dapi/order/all?order_id=<last id>` (cursor) | not needed: list has item prices | Swiggy web session | ~33 orders (web history is about 1 year) |
-| Instamart | `GET https://instamart.in/api/instamart/orders?order_type=DASH&count=10&from_time=<ms>` | not tested | instamart.in session | 6 orders |
+| Instamart | `GET https://instamart.in/api/instamart/orders?order_type=DASH&count=10&from_time=<ms>` | **same response**: prices are in `order_data.orders[].order_jobs[].metadata` | instamart.in session | all 6 orders (6 of 6 reconcile) |
 | Blinkit | `POST https://blinkit.com/v1/layout/order_history` (cursor `pagination.next_url`) | `POST https://blinkit.com/v1/layout/order_details/<orderId>?cart_id=<cartId>` | `localStorage.auth.accessToken`, `localStorage.authKey`, cookie `gr_1_deviceId` | list: 274 delivered; detail: 24 orders over all 28 pages |
 | Zepto | `GET https://bff-gateway.zepto.com/api/v2/order/?page_number=N` | `POST https://bff-gateway.zepto.com/pfs-postorder/api/v1/get-page/ORDER_DETAILS` | Zepto web session cookies + `XSRF-TOKEN` | list: 93 orders; detail: 24 orders |
 
@@ -57,7 +57,10 @@ evidence base: exact routes, field names, who we learned them from, how they wer
   - Bill rows have `widget_type: "cart_bill_item"`: `data.left_header.text` / `data.right_header.text`: MRP, Product discount ("-₹14"),
     Item total, Convenience charge, Handling charge, Surge charge, Delivery charges, Tip amount, Bill total.
   - Line prices are already net of product discount, so Σ lines = "Item total". One order in 24 had no "Item total" row; Σ lines + fee rows = Bill total still held.
-- Reconcile rule (`blinkitPriced`): Σ lines = "Item total" within ₹1, else Σ lines + fee rows + tip = "Bill total".
+- Two real cases that broke the first rule (found 14 Nov 2026 by looking at the 2 Blinkit orders that stayed unpriced):
+  1. A refunded row titled **"1 item unavailable"** appears as an item snippet with no quantity and no price. It is not an item: skip it.
+  2. A coupon appears as **"Promo discount (Coupon code: …)" with a negative amount, after the item prices** (no "Item total" row in that order): 214 - 2.69 + 18 + 12 = 241.31.
+- Reconcile rule (`blinkitPriced`): Σ lines = "Item total" within ₹1, else Σ lines + **every other bill row except MRP / Product discount / Item total / Bill total** (fees and tip positive, promo discount negative) = "Bill total". Promo discounts are stored as the order's `discount`.
 
 ### Zepto
 - **List**: needs headers `Appversion`/`App_version` (currently `17.2.2`; **the API answers HTTP 426 when it is older than the site's version**),
@@ -75,7 +78,12 @@ evidence base: exact routes, field names, who we learned them from, how they wer
 
 ### Swiggy and Instamart
 - Swiggy food: the list already has item prices (`order_items[].name/quantity/total`), `item_total`, `order_discount`. Fees = total - item_total + discount.
-- Instamart: only about 6 orders are reachable; no item prices from the list; detail route untested. Estimated, with manual prices as fallback.
+- Instamart: only about 6 orders are reachable. **The list response already carries item prices**, hidden one level down: `order_data.orders[].order_jobs[].metadata`
+  is a **JSON string**; parsed, `bill.billedItems[]` has `item.name`, `bill.quantity`, `bill.itemPrice` (unit) and `bill.totalCost` (line total), and
+  `bill.totalItemCost` / `bill.subTotal` is the platform's own item cost (`orderTotal` / `bill.totalBill` is what was paid). An order delivered from several stores has several
+  jobs: add them up. The order page (`https://instamart.in/order-detail?orderId=<id>`, reached from `/account-details`, which sometimes shows a "We'll be back shortly" glitch)
+  renders the same data plus fee rows (Delivery, Surge, Handling, Convenience, Offer Discount). The shallow `order_data_v2` only has name and quantity, which is all the first version read.
+  Reconcile rule (`instamartPriced`): Σ line totals = `totalItemCost` within ₹1 and not above the total paid. Verified on all 6 orders; the units matched too.
 - Swiggy also has an official developer MCP server (`mcp.swiggy.com/builders`): `get_order_details` returns item `finalPrice`, but its order list covers
   only the last 15 days, production use needs approval, and its terms forbid scraping beyond the API. Not used.
 
@@ -134,6 +142,13 @@ Chrome stores extension names behind `__MSG_...__` placeholders; search file con
 6. **Validate before trusting**: run the *real* runner function on a spread of orders (recent and oldest, small and large) and check that item prices reconcile with the
    platform's own totals. Report counts only. Do the same inside the repo's tests with a fake `fetch` (`extension-app/runners.test.ts`, `worker.test.ts`).
 7. Write the route, field names, reconcile rule and verification count into section 1 and 2 above.
+
+### 6b. Finding out why specific orders are still estimated
+The extension's own data can be read without any UI: `chrome.storage.local` is a LevelDB at
+`~/Library/Application Support/Google/Chrome/Default/Local Extension Settings/<extension id>/` (the unpacked build's id is in `Secure Preferences` under `extensions.settings`, path `.../dist-extension`).
+The newest writes sit in the `.log` file as plain JSON, one `"platform:id":{"data":{...}}` entry per order (later entries win; entries that straddle a 32 KB block boundary fail to parse and can be skipped).
+List the orders with `data.itemsPriced !== true`, then replay just those orders through the detail call and compare their bill rows with the reconcile rule. This is how the Blinkit "item unavailable" and
+promo-discount cases and the Instamart gap were found. Read-only; never copy the data elsewhere.
 
 ## 7. When a platform stops returning data (decision tree)
 

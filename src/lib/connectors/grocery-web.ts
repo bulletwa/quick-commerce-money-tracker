@@ -61,6 +61,17 @@ export interface InstamartRaw {
   units: number | string;
   nanos?: number | string;
   items: { name: string; quantity: number | string }[];
+  /** From order_data...metadata.bill.billedItems: each line's total (₹) and the platform's own item cost for the order. */
+  lines?: { name: string; qty: number; total: number }[];
+  itemCost?: number | null;
+}
+/** Exact lines when the item prices add up to the platform's own item cost (within ₹1), and cost no more than was paid. */
+export function instamartPriced(r: Pick<InstamartRaw, "lines" | "itemCost">, total: number) {
+  const lines = r.lines ?? [];
+  if (!lines.length || r.itemCost == null || lines.some((l) => !l.name || !Number.isFinite(l.total) || l.total < 0)) return null;
+  const sum = r2(lines.reduce((a, l) => a + l.total, 0));
+  if (Math.abs(sum - r.itemCost) > 1 || sum > total + 1) return null;
+  return { items: pricedLines(lines.map((l) => ({ name: l.name, qty: l.qty, line: l.total }))), itemTotal: sum, fees: Math.max(0, r2(total - sum)) };
 }
 export function mapInstamart(raws: InstamartRaw[]) {
   const orders: Order[] = [];
@@ -69,6 +80,11 @@ export function mapInstamart(raws: InstamartRaw[]) {
     const total = r2((Number(r.units) || 0) + (Number(r.nanos) || 0) / 1e9);
     const t = Number(r.created_at);
     if (!/^DELIVERED$/i.test(r.status ?? "") || !Number.isFinite(t) || !r.order_id || total <= 0) { skipped++; continue; }
+    const priced = instamartPriced(r, total);
+    if (priced) {
+      orders.push({ ...base("instamart", String(r.order_id), new Date(t).toISOString(), "Instamart", total, priced.items), itemTotal: priced.itemTotal, fees: priced.fees, itemsPriced: true });
+      continue;
+    }
     orders.push(base("instamart", String(r.order_id), new Date(t).toISOString(), "Instamart", total, lines((r.items ?? []).map((i) => ({ name: i.name, qty: Number(i.quantity) })))));
   }
   return { orders, skipped };
@@ -84,19 +100,26 @@ export interface BlinkitRaw {
   bill?: Record<string, number>; // the order page's bill rows by label, e.g. "Item total", "Delivery charges", "Bill total"
 }
 
-/** Exact lines for a Blinkit order when its bill agrees with itself (item prices add up to the "Item total", or to the bill total with the fee rows). */
+/**
+ * Exact lines for a Blinkit order when its bill agrees with itself. Bill rows are signed ("-₹14" is a discount). Line prices are net of
+ * "Product discount", so item prices add up to the "Item total" row; a coupon ("Promo discount") comes off afterwards. Without an
+ * "Item total" row the check is: item prices + every other bill row (fees, tip, promo discount) = "Bill total".
+ * A row such as "1 item unavailable" (no price, refunded) is not an item.
+ */
 export function blinkitPriced(r: Pick<BlinkitRaw, "items" | "bill">, total: number) {
-  const items = r.items ?? [];
+  const items = (r.items ?? []).filter((i) => Number.isFinite(i.line) || !/unavailable/i.test(i.name ?? ""));
   if (!items.length || !items.every((i) => i.name && Number.isFinite(i.line) && (i.line as number) >= 0)) return null;
   const sum = r2(items.reduce((a, i) => a + (i.line as number), 0));
   const bill = r.bill ?? {};
-  const rows = Object.entries(bill);
-  const tip = r2(rows.filter(([k]) => /tip/i.test(k)).reduce((a, [, v]) => a + v, 0));
-  const feeRows = r2(rows.filter(([k, v]) => v > 0 && /charge|fee|surge|handling|delivery|convenience|packag/i.test(k) && !/discount|total|mrp/i.test(k)).reduce((a, [, v]) => a + v, 0));
+  // every row that is neither the gross/net item figures nor the total: fees and tips (+), promo/coupon discounts (-)
+  const other = Object.entries(bill).filter(([k]) => !/^(mrp|product discount|item total|bill total)$/i.test(k.trim()));
+  const tip = r2(other.filter(([k]) => /tip/i.test(k)).reduce((a, [, v]) => a + v, 0));
+  const discount = r2(other.filter(([k, v]) => v < 0 && !/tip/i.test(k)).reduce((a, [, v]) => a - v, 0));
+  const otherSum = r2(other.reduce((a, [, v]) => a + v, 0));
   const itemTotal = bill["Item total"], billTotal = bill["Bill total"];
-  const ok = itemTotal != null ? Math.abs(sum - itemTotal) <= 1 : billTotal != null ? Math.abs(sum + feeRows + tip - billTotal) <= 1 : false;
+  const ok = itemTotal != null ? Math.abs(sum - itemTotal) <= 1 : billTotal != null ? Math.abs(sum + otherSum - billTotal) <= 1 : false;
   if (!ok) return null;
-  return { items: pricedLines(items.map((i) => ({ name: i.name, qty: i.qty, line: i.line as number }))), itemTotal: sum, tip, fees: Math.max(0, r2(total - sum - tip)) };
+  return { items: pricedLines(items.map((i) => ({ name: i.name, qty: i.qty, line: i.line as number }))), itemTotal: sum, tip, discount, fees: Math.max(0, r2(total - sum - tip + discount)) };
 }
 const MON = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 const DATE = /(\d{1,2})\s+([A-Za-z]{3})[a-z]*,?\s*(?:(\d{4}),?\s*)?(?:(\d{1,2}):(\d{2})\s*([ap]m))?/i; // older orders show a date without a time
@@ -126,7 +149,7 @@ export function mapBlinkit(raws: BlinkitRaw[], now = new Date()) {
     if (!/^DELIVERED$/i.test(r.status ?? "") || !r.orderId || !Number.isFinite(total) || total <= 0) { skipped++; continue; }
     const priced = blinkitPriced(r, total);
     if (priced) {
-      orders.push({ ...base("blinkit", String(r.orderId), new Date(t).toISOString(), "Blinkit", total, priced.items), itemTotal: priced.itemTotal, fees: priced.fees, tip: priced.tip, itemsPriced: true });
+      orders.push({ ...base("blinkit", String(r.orderId), new Date(t).toISOString(), "Blinkit", total, priced.items), itemTotal: priced.itemTotal, fees: priced.fees, tip: priced.tip, discount: priced.discount, itemsPriced: true });
       continue;
     }
     orders.push(base("blinkit", String(r.orderId), new Date(t).toISOString(), "Blinkit", total, lines(r.items ?? [])));

@@ -87,6 +87,16 @@ describe("exact prices from order details", () => {
     const { orders } = mapBlinkit([bk({ amount: "₹575", items: [{ name: "A", qty: 1, line: 300 }, { name: "B", qty: 1, line: 245 }], bill: { MRP: 545, "Convenience charge": 18, "Delivery charges": 12, "Bill total": 575 } })], new Date("2026-11-14T00:00:00Z"));
     expect(orders[0]).toMatchObject({ itemsPriced: true, itemTotal: 545, fees: 30 });
   });
+  it("blinkit: a refunded 'item unavailable' row is not an item; a coupon comes off after the item total", () => {
+    const now = new Date("2026-11-14T00:00:00Z");
+    const a = mapBlinkit([bk({ amount: "₹1,062", items: [{ name: "1 item unavailable", qty: 1 }, { name: "Sauce", qty: 1, line: 74 }, { name: "Cloth", qty: 1, line: 147 }, { name: "Ginger Ale", qty: 1, line: 228 }, { name: "Bread", qty: 1, line: 35 }, { name: "Chilli", qty: 1, line: 52 }, { name: "Soy", qty: 1, line: 81 }, { name: "Rings", qty: 1, line: 75 }, { name: "Cigarettes", qty: 1, line: 340 }],
+      bill: { MRP: 1129, "Product discount": -97, "Item total": 1032, "Convenience charge": 18, "Delivery charges": 12, "Bill total": 1062 } })], now).orders[0];
+    expect(a).toMatchObject({ itemsPriced: true, itemTotal: 1032, fees: 30 });
+    expect(a.items).toHaveLength(8);
+    const b = mapBlinkit([bk({ amount: "₹241.31", items: [{ name: "Zincovit Tablets", qty: 2, line: 214 }], bill: { MRP: 214, "Promo discount\n(Coupon code: X)": -2.69, "Convenience charge": 18, "Delivery charges": 12, "Bill total": 241.31 } })], now).orders[0];
+    expect(b).toMatchObject({ itemsPriced: true, itemTotal: 214, discount: 2.69, fees: 30 });
+    expect(b.total).toBeCloseTo(b.itemTotal + b.fees - b.discount + b.tip);
+  });
   it("blinkit: stays estimated when a price is missing or the bill does not add up", () => {
     const now = new Date("2026-11-14T00:00:00Z");
     expect(mapBlinkit([bk({ items: [{ name: "A", qty: 1 }], bill: { "Item total": 290, "Bill total": 320 } })], now).orders[0].itemsPriced).toBe(false);
@@ -100,6 +110,15 @@ describe("exact prices from order details", () => {
     expect(orders[0]).toMatchObject({ itemsPriced: true, itemTotal: 503.84, total: 520 });
     expect(orders[0].fees).toBeCloseTo(16.16);
     expect(orders[0].items[0]).toMatchObject({ qty: 3, unitPrice: 122 });
+  });
+  it("instamart: lines from the list's bill, fees are the rest", () => {
+    const lines = [{ name: "Marlboro Clove", qty: 4, total: 960 }, { name: "Milk", qty: 1, total: 831 }];
+    const { orders } = mapInstamart([{ order_id: 5, created_at: 1782226256000, status: "DELIVERED", units: 1820, nanos: 0, items: [{ name: "Marlboro Clove", quantity: 4 }], lines, itemCost: 1791 }]);
+    expect(orders[0]).toMatchObject({ itemsPriced: true, itemTotal: 1791, total: 1820 });
+    expect(orders[0].fees).toBeCloseTo(29);
+    expect(orders[0].items[0]).toMatchObject({ qty: 4, unitPrice: 240 });
+    const bad = mapInstamart([{ order_id: 6, created_at: 1782226256000, status: "DELIVERED", units: 1820, nanos: 0, items: [{ name: "x", quantity: 1 }], lines, itemCost: 1000 }]);
+    expect(bad.orders[0].itemsPriced).toBe(false);
   });
   it("zepto: ignores details that exceed the total or are tiny", () => {
     const mk = (detail: { name: string; qty: number; total: number }[]) => mapZepto([{ id: "1", status: "DELIVERED", placedTime: "2026-09-12T17:15:30Z", grandTotalAmount: 10000, items: [{ name: "x", count: 1 }], detail }]).orders[0];

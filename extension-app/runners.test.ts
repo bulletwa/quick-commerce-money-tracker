@@ -38,6 +38,7 @@ describe("runBlinkitDetails", () => {
     snippet("Marlboro Advance Compact", "10 pcs x 2", "₹244"),
     snippet("Amul Taaza Toned Milk", "500 ml x 2", "~~<regular-200|{grey-600|₹60}>~~ ₹46"),
     snippet("Fortune Oil", "Pack of 6", "₹1,234.50"), // a trailing number that is not a quantity
+    { widget_type: "z_v3_image_text_snippet_type_30", data: { title: { text: "1 item unavailable" } } }, // refunded row: no quantity, no price
     bill("MRP", "₹304"), bill("Product discount", "-₹14"), bill("Item total", "₹290"), bill("Delivery charges", "+₹12"), bill("Bill total", "₹320"),
   ];
   it("reads line prices (struck-through MRP ignored), quantities and signed bill rows", async () => {
@@ -86,5 +87,19 @@ describe("runZeptoDetails", () => {
     const r = await run("runZeptoDetails", (_u, init) => { body = init?.body ?? ""; return json(200, page); }, [{ orderId: "01a0954c" }]);
     expect(JSON.parse(body)).toMatchObject({ orderId: "01a0954c", isArchived: false });
     expect(r.details[0].detail).toEqual([{ name: "Marlboro Advance Compact", qty: 3, total: 36600 }, { name: "Milk", qty: 2, total: 6000 }]);
+  });
+});
+
+describe("runInstamart", () => {
+  const job = (items: { name: string; qty: number; total: number }[], cost: number) => ({
+    metadata: JSON.stringify({ orderTotal: cost + 29, bill: { totalItemCost: cost, subTotal: cost, billedItems: items.map((i) => ({ item: { name: i.name, quantity: i.qty }, bill: { quantity: i.qty, totalCost: i.total, itemPrice: i.total / i.qty } })) } }),
+  });
+  const order = { order_id: "9", created_at: 1782226256000, history_status: "DELIVERED", order_data_v2: { total: { units: 1820, nanos: 0 }, shipments: [{ items: [{ name: "Marlboro Clove", quantity: 4 }] }] },
+    order_data: { orders: [{ order_jobs: [job([{ name: "Marlboro Clove", qty: 4, total: 960 }], 960), job([{ name: "Milk", qty: 2, total: 60 }], 60)] }] } };
+  it("reads each line's total and the item cost across all of an order's jobs, nothing else", async () => {
+    const r = (await run("runInstamart", () => json(200, { statusCode: 0, data: { orders: [order] } }), undefined)) as unknown as { orders: { lines: unknown[]; itemCost: number; items: unknown[] }[] };
+    expect(r.orders[0].lines).toEqual([{ name: "Marlboro Clove", qty: 4, total: 960 }, { name: "Milk", qty: 2, total: 60 }]);
+    expect(r.orders[0].itemCost).toBe(1020);
+    expect(JSON.stringify(r)).not.toContain("customer");
   });
 });
