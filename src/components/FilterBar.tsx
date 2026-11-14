@@ -1,8 +1,11 @@
 "use client";
+import { useState } from "react";
 import { PLATFORMS, PLATFORM_LABEL } from "@/lib/types";
 import type { Filters } from "@/lib/analytics";
 
 export function FilterBar({ f, set, categories }: { f: Filters; set: (f: Filters) => void; categories: string[] }) {
+  const [allCats, setAllCats] = useState(false);
+  const shown = allCats ? categories : categories.filter((c, i) => i < 10 || f.categories.includes(c));
   const toggle = <T,>(arr: T[], v: T) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
   const preset = (days: number) => {
     const to = new Date();
@@ -37,9 +40,10 @@ export function FilterBar({ f, set, categories }: { f: Filters; set: (f: Filters
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs text-muted w-16">Category</span>
-        {categories.map((c) => (
+        {shown.map((c) => (
           <button key={c} className="chip" data-on={f.categories.includes(c)} onClick={() => set({ ...f, categories: toggle(f.categories, c) })}>{c}</button>
         ))}
+        {categories.length > 10 && <button className="chip" onClick={() => setAllCats(!allCats)}>{allCats ? "Show fewer" : `More (${categories.length - shown.length}) ▾`}</button>}
         <button className="btn ml-auto" onClick={() => set({ platforms: [], categories: [] })}>Reset</button>
       </div>
     </div>

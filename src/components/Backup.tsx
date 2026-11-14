@@ -33,7 +33,7 @@ export function Backup({ onChange }: { onChange: () => void }) {
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2 text-sm">
+    <div className="flex flex-col items-stretch gap-2 text-sm">
       <button className="btn" onClick={exportIt}>Export backup</button>
       <button className="btn" onClick={() => file.current?.click()}>Import backup</button>
       <button className="btn" onClick={clear}>Delete all data</button>

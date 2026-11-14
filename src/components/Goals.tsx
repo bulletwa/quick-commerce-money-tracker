@@ -1,12 +1,14 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import type { Order } from "@/lib/types";
-import { METRICS, METRIC_LABEL, SCOPES, describeGoal, goalProgress, limitFromAverage, recentAverage, smartTips, suggestGoals, type Goal, type Metric, type Progress, type Scope } from "@/lib/goals";
+import { METRICS, METRIC_LABEL, SCOPES, byMonth, describeGoal, goalProgress, limitFromAverage, metricValue, monthKey, recentAverage, smartTips, suggestGoals, type Goal, type Metric, type Progress, type Scope } from "@/lib/goals";
 import { inr } from "@/lib/format";
 import { api } from "@/lib/api";
 
 const COLOR = { ok: "#10b981", warn: "#f59e0b", over: "#ef4444" } as const;
 const fmt = (m: Metric, n: number) => (m === "spend" ? inr(n) : String(Math.round(n)));
+/** with the unit spelled out, so "6 of 8" reads "6 of 8 orders" */
+const fmtU = (m: Metric, n: number) => (m === "spend" ? inr(n) : `${Math.round(n)} ${Math.round(n) === 1 ? "order" : "orders"}`);
 const TIP_ICON = { warn: "⚠️", info: "💡", good: "✅" } as const;
 
 function GoalCard({ p, onDelete }: { p: Progress; onDelete: () => void }) {
@@ -22,14 +24,14 @@ function GoalCard({ p, onDelete }: { p: Progress; onDelete: () => void }) {
         <button className="text-xs text-muted hover:text-foreground" onClick={onDelete} aria-label={`Delete goal ${g.label}`}>Remove</button>
       </div>
       <div className="flex items-baseline justify-between text-sm">
-        <span className="text-lg font-semibold">{fmt(g.metric, p.value)} <span className="text-sm font-normal text-muted">of {fmt(g.metric, g.limit)}</span></span>
-        <span style={{ color: COLOR[p.state] }}>{p.state === "over" ? `${fmt(g.metric, -p.remaining)} over` : `${fmt(g.metric, p.remaining)} left`}</span>
+        <span className="text-lg font-semibold">{fmt(g.metric, p.value)} <span className="text-sm font-normal text-muted">of {fmtU(g.metric, g.limit)}</span></span>
+        <span style={{ color: COLOR[p.state] }}>{p.state === "over" ? `${fmtU(g.metric, -p.remaining)} over` : `${fmtU(g.metric, p.remaining)} left`}</span>
       </div>
       <div className="h-2 rounded bg-border"><div className="h-2 rounded" style={{ width: `${Math.min(100, p.pct * 100)}%`, background: COLOR[p.state] }} /></div>
       <div className="flex flex-wrap justify-between gap-x-3 text-xs text-muted">
-        <span>On pace for {fmt(g.metric, p.projected)}</span>
+        <span>On pace for {fmtU(g.metric, p.projected)} this month</span>
         {p.vsBaselinePct != null && (
-          <span style={{ color: p.vsBaselinePct <= 0 ? COLOR.ok : COLOR.over }} title={`Your average over the previous months: ${fmt(g.metric, p.baseline)}`}>
+          <span style={{ color: p.vsBaselinePct <= 0 ? COLOR.ok : COLOR.over }} title={`Your average over the previous months: ${fmtU(g.metric, p.baseline)} a month`}>
             {p.vsBaselinePct <= 0 ? "▼" : "▲"} {Math.abs(Math.round(p.vsBaselinePct))}% vs your usual
           </span>
         )}
@@ -39,7 +41,7 @@ function GoalCard({ p, onDelete }: { p: Progress; onDelete: () => void }) {
         <div>
           <div className="relative flex h-10 items-end gap-1">
             {p.history.map((h) => (
-              <div key={h.month} className="flex-1 rounded-sm" title={`${h.month}: ${fmt(g.metric, h.value)}${h.met ? "" : " (over)"}`}
+              <div key={h.month} className="flex-1 rounded-sm" title={`${h.month}: ${fmtU(g.metric, h.value)}${h.met ? "" : " (over)"}`}
                 style={{ height: `${Math.max(4, (h.value / maxH) * 100)}%`, background: h.met ? COLOR.ok : COLOR.over, opacity: 0.8 }} />
             ))}
           </div>
@@ -53,6 +55,8 @@ function GoalCard({ p, onDelete }: { p: Progress; onDelete: () => void }) {
 export function Goals({ orders }: { orders: Order[] }) {
   const [goals, setGoals] = useState<Goal[] | null>(null);
   const [err, setErr] = useState("");
+  const [open, setOpen] = useState(() => { try { return localStorage.getItem("mt-goals-open") !== "0"; } catch { return true; } });
+  const toggleOpen = () => setOpen((v) => { try { localStorage.setItem("mt-goals-open", v ? "0" : "1"); } catch { /* preference only */ } return !v; });
   const [form, setForm] = useState<{ scope: Scope; metric: Metric; limit: string; label: string }>({ scope: "food", metric: "orders", limit: "", label: "" });
 
   const run = async (p: Promise<Goal[]>) => {
@@ -70,6 +74,12 @@ export function Goals({ orders }: { orders: Order[] }) {
   const formAvg = useMemo(() => recentAverage(orders, { scope: form.scope, metric: form.metric, threshold: 200 }, 2, now), [orders, form.scope, form.metric, now]);
   const post = (body: unknown) => run(api.saveGoals(body));
   const month = now.toLocaleString("en-IN", { month: "long", year: "numeric" });
+  const overN = progress.filter((p) => p.state === "over").length, warnN = progress.filter((p) => p.state === "warn").length, okN = progress.length - overN - warnN;
+  const monthLine = useMemo(() => {
+    const cur = byMonth(orders).get(monthKey(now)) ?? [];
+    const f = metricValue(cur, { scope: "food", metric: "spend" }), g = metricValue(cur, { scope: "grocery", metric: "spend" });
+    return `${now.getDate() === 1 ? "1" : `1–${now.getDate()}`} ${now.toLocaleString("en-IN", { month: "short" })}: ${inr(f + g)} spent (food ${inr(f)} · groceries ${inr(g)})`;
+  }, [orders, now]);
 
   const add = () => {
     const limit = Number(form.limit);
@@ -81,7 +91,13 @@ export function Goals({ orders }: { orders: Order[] }) {
 
   return (
     <section className="space-y-3">
-      <h2 className="text-lg font-semibold">Budgets &amp; goals <span className="text-sm font-normal text-muted">· {month}</span></h2>
+      <button className="flex w-full flex-wrap items-baseline gap-x-3 gap-y-1 text-left" onClick={toggleOpen} aria-expanded={open}>
+        <h2 className="text-lg font-semibold">{open ? "▾" : "▸"} Budgets &amp; goals <span className="text-sm font-normal text-muted">· {month}</span></h2>
+        <span className="text-sm text-muted">
+          {monthLine} · {progress.length ? [overN && `${overN} over`, warnN && `${warnN} near limit`, okN && `${okN} on track`].filter(Boolean).join(", ") : "no goals yet"}
+        </span>
+      </button>
+      {open && <>
 
       {tips.length > 0 && (
         <div className="card">
@@ -115,13 +131,14 @@ export function Goals({ orders }: { orders: Order[] }) {
           <input className="input w-28" inputMode="numeric" value={form.limit} onChange={(e) => setForm({ ...form, limit: e.target.value })} placeholder={form.metric === "spend" ? "5000" : "8"} /></label>
         {formAvg > 0 && (
           <button className="btn" onClick={() => setForm({ ...form, limit: String(limitFromAverage(form.metric, formAvg)) })} title="Average of the last 2 full months">
-            Use 2-month avg ({fmt(form.metric, limitFromAverage(form.metric, formAvg))})
+            Use 2-month avg ({fmtU(form.metric, limitFromAverage(form.metric, formAvg))})
           </button>
         )}
         <label className="space-y-1"><div className="text-xs text-muted">Name (optional)</div>
           <input className="input w-48" value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} /></label>
         <button className="btn btn-primary" onClick={add}>Add goal</button>
       </div>
+      </>}
     </section>
   );
 }

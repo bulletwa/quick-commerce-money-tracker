@@ -23,6 +23,8 @@ export interface Order {
   total: number; // amount actually paid
   items: OrderItem[];
   allUnits?: number; // set by filters: item units in the whole order before items were narrowed
+  fullTotal?: number; // set by a category filter: what was actually paid for the whole order (total/itemTotal/fees are then the selected items' share)
+  partial?: boolean; // true when only some of the order's items are counted (category filter)
   itemsPriced?: boolean; // false = item names/counts known but not their prices (spend-by-item must skip them)
 }
 

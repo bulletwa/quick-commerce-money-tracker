@@ -1,4 +1,4 @@
-import type { Order, OrderType, Platform } from "../types";
+import { PLATFORM_LABEL, type Order, type OrderType, type Platform } from "../types";
 
 export interface Filters {
   from?: string; // yyyy-mm-dd
@@ -13,24 +13,81 @@ export interface Filters {
 
 export const emptyFilters: Filters = { platforms: [], categories: [] };
 
+/**
+ * Keep only the selected categories' items and give the order the matching share of its money, so every chart that sums
+ * order totals agrees with the filter. Priced orders use item prices for the share; unpriced ones (no item prices from the
+ * platform) share by units, which is an estimate. An order made only of selected items is returned untouched.
+ */
+function narrowToCategories(o: Order, cats: string[]): Order {
+  const kept = o.items.filter((i) => cats.includes(i.category));
+  if (kept.length === o.items.length) return o;
+  const units = (xs: Order["items"]) => xs.reduce((a, i) => a + i.qty, 0);
+  const keptUnits = units(kept), allUnits = units(o.items);
+  const byUnits = allUnits ? keptUnits / allUnits : 0;
+  let share = byUnits;
+  if (o.itemsPriced !== false) {
+    const all = o.items.reduce((a, i) => a + i.qty * i.unitPrice, 0);
+    share = all > 0 ? kept.reduce((a, i) => a + i.qty * i.unitPrice, 0) / all : byUnits;
+  }
+  return {
+    ...o, items: kept, allUnits: keptUnits, partial: true, fullTotal: o.total,
+    itemTotal: o.itemTotal * share, fees: o.fees * share, discount: o.discount * share, tip: o.tip * share, total: o.total * share,
+  };
+}
+
 export function applyFilters(orders: Order[], f: Filters): Order[] {
   const q = f.q?.trim().toLowerCase();
   const to = f.to ? new Date(f.to + "T23:59:59.999").getTime() : Infinity;
   const from = f.from ? new Date(f.from + "T00:00:00").getTime() : -Infinity;
   return orders
-    .map((o) => (f.categories.length ? { ...o, allUnits: o.items.reduce((a, i) => a + i.qty, 0), items: o.items.filter((i) => f.categories.includes(i.category)) } : o))
+    .map((o) => (f.categories.length ? narrowToCategories(o, f.categories) : o))
     .filter((o) => {
       const t = new Date(o.placedAt).getTime();
       if (t < from || t > to) return false;
       if (f.platforms.length && !f.platforms.includes(o.platform)) return false;
       if (f.type && o.type !== f.type) return false;
       if (f.categories.length && o.items.length === 0) return false;
-      if (f.minTotal != null && o.total < f.minTotal) return false;
-      if (f.maxTotal != null && o.total > f.maxTotal) return false;
+      const paid = o.fullTotal ?? o.total; // the order-size filter means what was really paid
+      if (f.minTotal != null && paid < f.minTotal) return false;
+      if (f.maxTotal != null && paid > f.maxTotal) return false;
       if (q && !(o.vendor.toLowerCase().includes(q) || o.items.some((i) => i.name.toLowerCase().includes(q)))) return false;
       return true;
     });
 }
+
+const fmtDay = (d: Date) => d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+const fmtMonth = (d: Date) => d.toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+
+/** The active filters in words (not counting dates), e.g. ["Dairy & Eggs", "Zomato", "Grocery"]. */
+export function filterParts(f: Filters): string[] {
+  const parts: string[] = [];
+  if (f.categories.length) parts.push(f.categories.length > 2 ? `${f.categories.length} categories` : f.categories.join(" + "));
+  if (f.platforms.length) parts.push(f.platforms.map((p) => PLATFORM_LABEL[p]).join(" + "));
+  if (f.type) parts.push(f.type === "food" ? "Food" : "Grocery");
+  if (f.q?.trim()) parts.push(`“${f.q.trim()}”`);
+  if (f.minTotal != null || f.maxTotal != null) parts.push(`orders ₹${f.minTotal ?? 0}–${f.maxTotal ?? "∞"}`);
+  return parts;
+}
+
+/** The period a set of totals covers: the chosen date range, or first–last order month when no dates are chosen. */
+export function periodLabel(f: Filters, orders: Order[], now = new Date()): string {
+  if (!orders.length) return "No orders in this selection";
+  if (f.from || f.to) {
+    const today = now.toISOString().slice(0, 10);
+    const days = f.from && f.to === today ? Math.round((Date.parse(today) - Date.parse(f.from)) / 864e5) : null;
+    const preset = days === 30 ? "Last 30 days" : days === 90 ? "Last 90 days" : days === 365 ? "Last year" : null;
+    if (preset) return preset;
+    const ts = orders.map((o) => new Date(o.placedAt).getTime());
+    const a = f.from ? new Date(f.from + "T00:00:00") : new Date(Math.min(...ts));
+    const b = f.to ? new Date(f.to + "T00:00:00") : new Date(Math.max(...ts));
+    return `${fmtDay(a)} – ${fmtDay(b)}`;
+  }
+  const ts = orders.map((o) => new Date(o.placedAt).getTime());
+  return `All time (${fmtMonth(new Date(Math.min(...ts)))} – ${fmtMonth(new Date(Math.max(...ts)))})`;
+}
+
+/** What was actually paid across these orders (whole-order amounts even under a category filter). */
+export const paidTotal = (orders: Order[]) => orders.reduce((s, o) => s + (o.fullTotal ?? o.total), 0);
 
 /**
  * Money attributed to one item line. Orders with item prices use them (exact). Otherwise the order total is shared
@@ -177,11 +234,11 @@ export function insights(orders: Order[]): string[] {
   const dish = topItems(orders, "food").sort(byCount)[0];
   const groc = topItems(orders, "grocery").sort(byCount)[0];
   const spendItem = topItems(orders).sort(bySpend)[0];
-  if (dish) out.push(`Your most-ordered dish is ${dish.name}: ${dish.count} times${dish.spend > 0 ? `, about ${inr(dish.spend)} in total` : ""}.`);
+  if (dish && dish.orders >= 2) out.push(`Your most-ordered dish is ${dish.name}: ${dish.count} times${dish.spend > 0 ? `, about ${inr(dish.spend)} in total` : ""}.`);
   if (groc) out.push(`Your most-bought grocery item is ${groc.name}: ${groc.count} units.`);
   if (spendItem) out.push(`${spendItem.name} is where you spent the most money: ${inr(spendItem.spend)}.`);
   const k = kpis(orders);
-  if (k.orders) out.push(`Delivery, handling and platform fees added up to ${inr(k.fees)} (${((k.fees / k.total) * 100).toFixed(1)}% of what you paid).`);
+  if (k.orders && k.fees > 0) out.push(`Delivery, handling and platform fees added up to ${inr(k.fees)} (${((k.fees / k.total) * 100).toFixed(1)}% of what you paid).`);
   const p = groupSum(orders, (o) => o.platform)[0];
   if (p) out.push(`${p.key[0].toUpperCase() + p.key.slice(1)} takes the biggest share of your wallet: ${inr(p.value)} across ${p.orders} orders.`);
   const h = heatmap(orders);
